@@ -182,6 +182,7 @@ class PracticeStore:
                     practice.attempt.feedback = result
                     practice.attempt.playback = {"text": result.summary, "speaker": "Coach"}
                 practice.pending = None
+                practice.touched = self.clock()
                 self.remember(practice, request_id, "advance")
                 return self.snapshot(practice)
             finally:
@@ -190,20 +191,29 @@ class PracticeStore:
                 if practice.inflight is task:
                     practice.inflight = None
 
+    @staticmethod
+    async def _cancel_inflight(practice: Practice):
+        """Invalidate any running step and wait for its cancellation before reading or freeing state."""
+        practice.generation += 1
+        inflight = practice.inflight
+        if inflight:
+            inflight.cancel()
+            await asyncio.gather(inflight, return_exceptions=True)
+
     async def stop(self, session_id: str) -> dict:
         practice = self.get(session_id)
-        practice.generation += 1
-        if practice.inflight:
-            practice.inflight.cancel()
-            await asyncio.gather(practice.inflight, return_exceptions=True)
+        await self._cancel_inflight(practice)
         async with practice.lock:
+            if practice.deleted:
+                raise AppError(404, "This practice expired or was reset. Reset the screen and start a new practice.", "PRACTICE_NOT_FOUND")
+            practice.touched = self.clock()
             return self.snapshot(practice)
 
     async def delete(self, session_id: str):
-        practice = self.sessions.get(session_id)
-        if not practice:
-            return
-        practice.deleted = True
-        await self.stop(session_id)
-        self.sessions.pop(session_id, None)
+        practice = self.sessions.pop(session_id, None)
+        if practice:
+            practice.deleted = True
+            await self._cancel_inflight(practice)
+            async with practice.lock:
+                pass
         self.prune()

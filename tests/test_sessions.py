@@ -158,3 +158,64 @@ def test_expiry_and_snapshot_copies_do_not_leak_or_mutate_other_sessions(context
     with pytest.raises(AppError):
         store.get(first["sessionId"])
     assert store.sessions == {}
+
+
+@pytest.mark.anyio
+async def test_delete_expired_session_is_idempotent_and_cancels_inflight(context):
+    now = [0.0]
+    store, provider = PracticeStore(ttl_seconds=10, clock=lambda: now[0]), FakeProvider()
+    entered, cancelled = asyncio.Event(), asyncio.Event()
+
+    async def slow(*args):
+        entered.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+
+    provider.roleplay = slow
+    session_id = store.create(context, key())["sessionId"]
+    pending = asyncio.create_task(store.advance(session_id, key(), provider))
+    await entered.wait()
+    now[0] = 15
+    await store.delete(session_id)
+    assert cancelled.is_set()
+    assert store.sessions == {}
+    assert store.creations == {}
+    with pytest.raises(asyncio.CancelledError):
+        await pending
+
+
+@pytest.mark.anyio
+async def test_advance_refreshes_touched_and_stop_rejects_concurrent_delete(context):
+    now = [0.0]
+    store, provider = PracticeStore(ttl_seconds=10, clock=lambda: now[0]), FakeProvider()
+
+    async def slow_reply(*args):
+        now[0] = 8.0
+        return "How does this affect Friday?"
+
+    provider.roleplay = slow_reply
+    session_id = store.create(context, key())["sessionId"]
+    await store.advance(session_id, key(), provider)
+    now[0] = 12.0
+    assert store.get(session_id).attempt.messages[0]["content"] == "How does this affect Friday?"
+
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def waiting(*args):
+        entered.set()
+        await release.wait()
+
+    provider.roleplay = waiting
+    store.answer(session_id, ANSWER, key())
+    pending = asyncio.create_task(store.advance(session_id, key(), provider))
+    await entered.wait()
+    stop_task = asyncio.create_task(store.stop(session_id))
+    await asyncio.sleep(0)
+    await store.delete(session_id)
+    with pytest.raises(AppError, match="expired"):
+        await stop_task
+    with pytest.raises((asyncio.CancelledError, AppError)):
+        await pending
