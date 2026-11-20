@@ -515,3 +515,22 @@ def test_prompts_prevent_attempt1_comparison_drift_and_grounding_leaks():
     assert "not a coding interview" in ROLEPLAY_PROMPT
     assert "two days later" in ROLEPLAY_PROMPT
     assert "only one" in ROLEPLAY_PROMPT.lower() and "?" in ROLEPLAY_PROMPT
+
+
+def test_speech_segments_boundary_and_markdown_edge_cases():
+    # Word boundary exactly at limit (space at index limit) must not split early.
+    exact_word_fit = "Hello " + ("b" * 194) + " next."
+    assert speech_segments(exact_word_fit, limit=200) == ["Hello " + ("b" * 194), "next."]
+
+    # Sentence boundary ending at limit - 1 ('.' at index 199, ' ' at index 200).
+    exact_sentence_fit = "Hello world. " + ("a" * 186) + ". Next sentence."
+    assert speech_segments(exact_sentence_fit, limit=200) == ["Hello world. " + ("a" * 186) + ".", "Next sentence."]
+
+    # Snake_case identifiers stay intact while Markdown emphasis, blockquotes, strike, and parens-in-URL are stripped.
+    assert speech_segments("> Check _known_facts_ and ~~old~~ [spec](https://example.com/v1_(draft)).") == [
+        "Check known_facts and old spec."
+    ]
+    assert speech_segments("* First item\n+ Second item") == ["First item Second item"]
+
+    with pytest.raises(ValueError):
+        speech_segments("Hello", limit=True)
