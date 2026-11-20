@@ -605,3 +605,148 @@ def test_web_api_encodes_session_ids_normalizes_errors_and_validates_payloads():
         await assert.rejects(() => api.config(), err => err.name === 'AbortError');
         """
     )
+
+
+def test_web_audio_recorder_mime_fallback_invalid_state_and_cleanup():
+    run_node_module(
+        """
+        import assert from 'node:assert/strict';
+        import { Recorder, SpeechPlayer } from './web/audio.js';
+
+        const makeStream = () => {
+          let stopped = 0;
+          return {
+            get stopped() { return stopped; },
+            getTracks() { return [{ stop() { stopped++; } }]; },
+          };
+        };
+
+        // 1. Missing isTypeSupported should not throw, and missing presets should fall back cleanly.
+        {
+          const stream = makeStream();
+          const calls = [];
+          class NoSupportMethodRecorder {
+            constructor(s, opts) { calls.push(opts); this.state = 'inactive'; this.mimeType = ''; }
+            start() { this.state = 'recording'; }
+            stop() { this.state = 'inactive'; this.onstop?.(); }
+          }
+          const rec = new Recorder({ mediaDevices: { getUserMedia: async () => stream }, RecorderClass: NoSupportMethodRecorder });
+          await rec.start(() => {});
+          assert.equal(calls[0], undefined);
+          const blob = await rec.finish();
+          assert.equal(blob.type, 'audio/webm');
+          assert.equal(stream.stopped, 1);
+          assert.equal(rec.recorder, null);
+        }
+
+        // 2. Backend-supported MIME outside original 4 presets (e.g. audio/ogg) and fallback if { mimeType } throws.
+        {
+          const stream = makeStream();
+          const ctorArgs = [];
+          class OggFallbackRecorder {
+            static isTypeSupported(t) { return t === 'audio/ogg'; }
+            constructor(s, opts) {
+              ctorArgs.push(opts);
+              if (opts) throw new DOMException('Unsupported', 'NotSupportedError');
+              this.state = 'inactive'; this.mimeType = '';
+            }
+            start() { this.state = 'recording'; }
+            stop() {
+              this.state = 'inactive';
+              this.ondataavailable?.({ data: new Blob(['abc'], { type: 'audio/ogg' }) });
+              this.onstop?.();
+            }
+          }
+          const rec = new Recorder({ mediaDevices: { getUserMedia: async () => stream }, RecorderClass: OggFallbackRecorder });
+          await rec.start(() => {});
+          assert.deepEqual(ctorArgs, [{ mimeType: 'audio/ogg' }, undefined]);
+          const blob = await rec.finish();
+          assert.equal(blob.type, 'audio/ogg');
+          assert.equal(stream.stopped, 1);
+        }
+
+        // 3. Pre-aborted signal in finish() + InvalidStateError in finish() and cancel() must release mic tracks.
+        {
+          const stream1 = makeStream();
+          class PreAbortedRecorder {
+            static isTypeSupported() { return false; }
+            constructor() { this.state = 'inactive'; }
+            start() { this.state = 'recording'; }
+            stop() { throw new Error('stop should not run on pre-aborted signal'); }
+          }
+          const rec1 = new Recorder({ mediaDevices: { getUserMedia: async () => stream1 }, RecorderClass: PreAbortedRecorder });
+          await rec1.start(() => {});
+          const ac = new AbortController(); ac.abort();
+          await assert.rejects(() => rec1.finish(ac.signal), err => err.name === 'AbortError');
+          assert.equal(stream1.stopped, 1);
+          assert.equal(rec1.recorder, null);
+
+          const stream2 = makeStream();
+          class ThrowingStopRecorder {
+            static isTypeSupported() { return false; }
+            constructor() { this.state = 'recording'; }
+            start() { this.state = 'recording'; }
+            stop() { throw new DOMException('Invalid state', 'InvalidStateError'); }
+          }
+          const rec2 = new Recorder({ mediaDevices: { getUserMedia: async () => stream2 }, RecorderClass: ThrowingStopRecorder });
+          await rec2.start(() => {});
+          await assert.rejects(() => rec2.finish(), /recording could not be completed/i);
+          assert.equal(stream2.stopped, 1);
+          assert.equal(rec2.recorder, null);
+
+          const stream3 = makeStream();
+          class PausedThrowingStopRecorder {
+            static isTypeSupported() { return false; }
+            constructor() { this.state = 'inactive'; this.stops = 0; }
+            start() { this.state = 'paused'; }
+            stop() {
+              this.stops++;
+              if (this.stops > 1) throw new DOMException('Invalid state', 'InvalidStateError');
+            }
+          }
+          const rec3 = new Recorder({ mediaDevices: { getUserMedia: async () => stream3 }, RecorderClass: PausedThrowingStopRecorder });
+          await rec3.start(() => {});
+          const pending = rec3.finish();
+          rec3.cancel();
+          await assert.rejects(() => pending, err => err.name === 'AbortError');
+          assert.equal(stream3.stopped, 1);
+          assert.equal(rec3.recorder, null);
+        }
+
+        // 4. SpeechPlayer: pre-aborted check, empty segments skips guardMs, sync audio.play() throw revokes URL.
+        {
+          let segmented = 0;
+          let revoked = 0;
+          const player = new SpeechPlayer(async () => new Blob(['RIFF']), {
+            segmentText: async () => { segmented++; return []; },
+            createAudio: () => ({
+              play() { throw new Error('Sync failure'); },
+              pause() {},
+            }),
+            createUrl: () => 'blob:fake',
+            revokeUrl: () => { revoked++; },
+            guardMs: 5000,
+          });
+          const ac = new AbortController(); ac.abort();
+          await assert.rejects(() => player.play('hi', { signal: ac.signal }), err => err.name === 'AbortError');
+          assert.equal(segmented, 0);
+
+          const start = Date.now();
+          await player.play('** **');
+          assert.ok(Date.now() - start < 500);
+
+          const player2 = new SpeechPlayer(async () => new Blob(['RIFF']), {
+            segmentText: async () => ['hello'],
+            createAudio: () => ({
+              play() { throw new Error('Sync failure'); },
+              pause() {},
+            }),
+            createUrl: () => 'blob:fake-2',
+            revokeUrl: () => { revoked++; },
+            guardMs: 0,
+          });
+          await assert.rejects(() => player2.play('hello'), /Audio playback failed/i);
+          assert.equal(revoked, 1);
+        }
+        """
+    )
