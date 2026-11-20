@@ -750,3 +750,136 @@ def test_web_audio_recorder_mime_fallback_invalid_state_and_cleanup():
         }
         """
     )
+
+
+def test_web_session_preserves_start_with_answer_draft_and_avoids_stop_on_mute():
+    run_node_module(
+        """
+        import assert from 'node:assert/strict';
+        import { PracticeSession } from './web/session.js';
+
+        const noopRecorder = { supported: true, cancel() {}, start: async () => {}, finish: async () => new Blob(['a']) };
+        const noopPlayer = { stop() {}, play: async () => {} };
+
+        // 1. startWithAnswer() keeps queuedAnswer when create succeeds and opening advance fails, then submits on recover().
+        {
+          const calls = [];
+          let advanceCalls = 0;
+          const api = {
+            create: async (context) => {
+              calls.push('create');
+              return { sessionId: 's1', context, maxAnswers: 3, pendingStage: 'roleplay', attempts: [{ number: 1, messages: [], feedback: null }], playback: null };
+            },
+            advance: async (id) => {
+              calls.push('advance');
+              advanceCalls++;
+              if (advanceCalls === 1) { const err = new Error('Busy'); err.code = 'PROVIDER_BUSY'; throw err; }
+              if (advanceCalls === 2) {
+                return { sessionId: id, maxAnswers: 3, pendingStage: null, attempts: [{ number: 1, messages: [{ role: 'assistant', content: 'Update?' }], feedback: null }], playback: null };
+              }
+              return { sessionId: id, maxAnswers: 3, pendingStage: null, attempts: [{ number: 1, messages: [{ role: 'assistant', content: 'Update?' }, { role: 'user', content: 'My draft' }, { role: 'assistant', content: 'Next?' }], feedback: null }], playback: null };
+            },
+            answer: async (id, text) => {
+              calls.push(['answer', text]);
+              return { sessionId: id, maxAnswers: 3, pendingStage: 'roleplay', attempts: [{ number: 1, messages: [{ role: 'assistant', content: 'Update?' }, { role: 'user', content: text }], feedback: null }], playback: null };
+            },
+            stop: async () => ({}), reset: async () => ({}),
+          };
+          const session = new PracticeSession({ api, recorder: noopRecorder, player: noopPlayer });
+          await session.startWithAnswer({ scenarioId: 'release-update' }, 'My draft');
+          assert.equal(session.state, 'ERROR');
+          assert.equal(session.queuedAnswer, 'My draft');
+          await session.recover();
+          assert.equal(session.state, 'IDLE');
+          assert.deepEqual(calls, ['create', 'advance', 'advance', ['answer', 'My draft'], 'advance']);
+          assert.equal(session.answers, 1);
+        }
+
+        // 2. setVoiceEnabled(false) during active speech cancels playback locally WITHOUT calling api.stop().
+        {
+          let stopCalls = 0;
+          let playerStopped = 0;
+          let releasePlay;
+          const api = {
+            create: async () => ({ sessionId: 's2', maxAnswers: 3, pendingStage: 'roleplay', attempts: [{ number: 1, messages: [], feedback: null }], playback: null }),
+            advance: async () => ({ sessionId: 's2', maxAnswers: 3, pendingStage: null, attempts: [{ number: 1, messages: [{ role: 'assistant', content: 'Q?' }], feedback: null }], playback: { text: 'Q?', speaker: 'Project manager' } }),
+            stop: async () => { stopCalls++; return {}; },
+            reset: async () => ({}),
+          };
+          const player = {
+            stop() { playerStopped++; releasePlay?.(new DOMException('Cancelled', 'AbortError')); },
+            play: (_text, { onState }) => new Promise((_res, rej) => { releasePlay = rej; onState('SPEAKING'); }),
+          };
+          const session = new PracticeSession({ api, recorder: noopRecorder, player });
+          const running = session.start({ scenarioId: 'release-update' });
+          await new Promise(r => setTimeout(r, 10));
+          assert.equal(session.pending?.type, 'speak');
+          await session.setVoiceEnabled(false);
+          await running;
+          assert.equal(stopCalls, 0);
+          assert.ok(playerStopped >= 1);
+          assert.equal(session.pending, null);
+          assert.equal(session.state, 'IDLE');
+        }
+
+        // 3. Double runPending() while awaiting this.stopping is blocked via busy state; same-gen AbortError resets to IDLE.
+        {
+          let resolveStop;
+          let createCalls = 0;
+          const api = {
+            create: async () => { createCalls++; return { sessionId: 's3', maxAnswers: 3, pendingStage: null, attempts: [{ number: 1, messages: [], feedback: null }], playback: null }; },
+            advance: async () => { throw new DOMException('Aborted', 'AbortError'); },
+            stop: async () => new Promise(r => { resolveStop = () => r({}); }),
+            reset: async () => ({}),
+          };
+          const session = new PracticeSession({ api, recorder: noopRecorder, player: noopPlayer });
+          session.snapshot = { sessionId: 'old', maxAnswers: 3, attempts: [{ number: 1, messages: [] }] };
+          session.stop();
+          session.snapshot = null;
+          const p1 = session.start({ scenarioId: 'release-update' });
+          assert.equal(session.busy, true);
+          const p2 = session.start({ scenarioId: 'release-update' });
+          resolveStop();
+          await Promise.all([p1, p2]);
+          assert.equal(createCalls, 1);
+
+          // Same-generation AbortError in runPending / finishRecording must not strand state in THINKING/TRANSCRIBING.
+          session.pending = { type: 'advance', id: 'req-1' };
+          await session.runPending();
+          assert.equal(session.state, 'IDLE');
+
+          const abortRec = {
+            supported: true, cancel() {},
+            start: async () => {},
+            finish: async () => { throw new DOMException('Aborted', 'AbortError'); },
+          };
+          const s4 = new PracticeSession({ api, recorder: abortRec, player: noopPlayer });
+          s4.snapshot = { sessionId: 's4', maxAnswers: 3, pendingStage: null, attempts: [{ number: 1, messages: [{ role: 'assistant', content: 'Q?' }], feedback: null }] };
+          await s4.startRecording();
+          await s4.finishRecording();
+          assert.equal(s4.state, 'IDLE');
+        }
+
+        // 4. Non-retryable UNSUPPORTED_AUDIO & PRACTICE_NOT_FOUND clear pending; hearExample respects voiceEnabled.
+        {
+          const api = {
+            transcribe: async () => { const e = new Error('Bad mime'); e.code = 'UNSUPPORTED_AUDIO'; throw e; },
+            advance: async () => { const e = new Error('Expired'); e.code = 'PRACTICE_NOT_FOUND'; throw e; },
+          };
+          const session = new PracticeSession({ api, recorder: noopRecorder, player: noopPlayer });
+          session.pending = { type: 'transcribe', audio: new Blob(['x']) };
+          await session.runPending();
+          assert.equal(session.pending, null);
+
+          session.pending = { type: 'advance', id: 'req-2' };
+          await session.runPending();
+          assert.equal(session.pending, null);
+
+          session.state = 'IDLE';
+          session.voiceEnabled = false;
+          session.snapshot = { sessionId: 's5', maxAnswers: 3, attempts: [{ number: 1, messages: [{ role: 'user', content: 'Hi' }], feedback: { improvedMessage: 'Clearer.' } }] };
+          await session.hearExample();
+          assert.equal(session.pending, null);
+        }
+        """
+    )

@@ -1,4 +1,16 @@
 // Browser I/O coordinator only. The Python server owns attempts, history and coaching.
+const NON_RETRYABLE_CODES = new Set([
+  'EMPTY_TRANSCRIPT',
+  'EMPTY_RECORDING',
+  'ANSWER_TOO_LONG',
+  'INVALID_INPUT',
+  'UNSUPPORTED_AUDIO',
+  'PRACTICE_NOT_FOUND',
+  'ATTEMPT_LIMIT',
+  'NOT_YOUR_TURN',
+  'REQUEST_CONFLICT',
+]);
+
 export class PracticeSession {
   constructor({ api, recorder, player }) {
     this.api = api; this.recorder = recorder; this.player = player;
@@ -24,6 +36,14 @@ export class PracticeSession {
   get feedback() { return this.attempt?.feedback; }
   apply(snapshot) { this.snapshot = snapshot; this.emit(); }
   setState(state) { this.state = state; this.emit(); }
+  _stopSpeech() {
+    if (this.pending?.type === 'speak' || ['SYNTHESIZING', 'SPEAKING'].includes(this.state)) {
+      this.generation++; this.controller?.abort(); this.player.stop();
+      this.blocked = false;
+      if (this.pending?.type === 'speak') this.pending = null;
+      if (!['IDLE', 'ERROR'].includes(this.state)) this.state = 'IDLE';
+    }
+  }
   async start(context) {
     if (this.snapshot || this.busy) return;
     this.voiceError = null; this.queuedAnswer = null;
@@ -40,11 +60,8 @@ export class PracticeSession {
   async submitAnswer(text) {
     const trimmed = text.trim();
     if (!this.canSend || !trimmed) return;
-    if (this.pending?.type === 'speak' || ['SYNTHESIZING', 'SPEAKING'].includes(this.state)) {
-      this.generation++; this.controller?.abort(); this.player.stop();
-      this.blocked = false; this.state = 'IDLE'; this.pending = null;
-    }
-    this.voiceError = null;
+    this._stopSpeech();
+    this.voiceError = null; this.queuedAnswer = null;
     this.pending = { type: 'answer', text: trimmed, id: crypto.randomUUID() };
     return this.runPending();
   }
@@ -78,6 +95,7 @@ export class PracticeSession {
     const signal = this.controller.signal;
     const current = () => generation === this.generation && !signal.aborted;
     this.error = null;
+    this.setState(this.pending.type === 'transcribe' ? 'TRANSCRIBING' : this.pending.type === 'speak' ? 'SYNTHESIZING' : 'THINKING');
     try {
       await this.stopping;
       while (this.pending && current()) {
@@ -98,7 +116,7 @@ export class PracticeSession {
                 onBlocked: blocked => { if (current()) { this.blocked = blocked; this.emit(); } },
               });
             } catch (error) {
-              if (!current() || error.name === 'AbortError') return;
+              if (!current() || error?.name === 'AbortError') return;
               this.voiceError = {
                 message: error.message || 'Voice playback is unavailable right now. You can continue by typing or recording.',
                 code: error.code || 'VOICE_FAILED',
@@ -133,9 +151,15 @@ export class PracticeSession {
       }
       if (current()) this.setState('IDLE');
     } catch (error) {
-      if (!current() || error.name === 'AbortError') return;
-      this.queuedAnswer = null;
-      if (['EMPTY_TRANSCRIPT', 'EMPTY_RECORDING', 'ANSWER_TOO_LONG', 'INVALID_INPUT'].includes(error.code)) this.pending = null;
+      if (error?.name === 'AbortError') {
+        if (generation === this.generation && this.state !== 'IDLE') this.setState('IDLE');
+        return;
+      }
+      if (!current()) return;
+      if (NON_RETRYABLE_CODES.has(error?.code)) {
+        this.pending = null;
+        this.queuedAnswer = null;
+      }
       this.error = { message: error.message || 'This step failed. Please retry.', code: error.code };
       this.setState('ERROR');
     }
@@ -150,8 +174,11 @@ export class PracticeSession {
     if (!this.canAnswer) return;
     this.error = null; this.voiceError = null; this.recordReady = false;
     const generation = ++this.generation;
+    this.controller?.abort();
     this.setState('LISTENING');
     try {
+      await this.stopping;
+      if (generation !== this.generation) return;
       await this.recorder.start(() => { if (generation === this.generation) this.finishRecording(); }, error => {
         if (generation !== this.generation) return;
         this.recordReady = false; this.error = { message: error.message }; this.setState('ERROR');
@@ -159,7 +186,11 @@ export class PracticeSession {
       if (generation !== this.generation) return;
       this.recordReady = true; this.recordStartedAt = Date.now(); this.emit();
     } catch (error) {
-      if (generation !== this.generation || error.name === 'AbortError') return;
+      if (error?.name === 'AbortError') {
+        if (generation === this.generation && this.state !== 'IDLE') this.setState('IDLE');
+        return;
+      }
+      if (generation !== this.generation) return;
       this.error = { message: error.name === 'NotAllowedError' ? 'Microphone access was denied. Allow it in your browser, or type your answer instead.' : error.message };
       this.setState('ERROR');
     }
@@ -168,27 +199,35 @@ export class PracticeSession {
     if (this.state !== 'LISTENING' || !this.recordReady) return;
     this.recordReady = false;
     const generation = this.generation;
-    this.controller = new AbortController(); this.setState('TRANSCRIBING');
+    this.controller?.abort();
+    this.controller = new AbortController();
+    this.setState('TRANSCRIBING');
     try {
       const audio = await this.recorder.finish(this.controller.signal);
       if (generation !== this.generation) return;
       this.pending = { type: 'transcribe', audio }; this.state = 'IDLE';
       return this.runPending();
     } catch (error) {
-      if (generation !== this.generation || error.name === 'AbortError') return;
+      if (error?.name === 'AbortError') {
+        if (generation === this.generation && this.state !== 'IDLE') this.setState('IDLE');
+        return;
+      }
+      if (generation !== this.generation) return;
       this.error = { message: error.message }; this.setState('ERROR');
     }
   }
   async hearExample() {
-    if (this.busy || !this.feedback) return;
+    if (this.busy || !this.voiceEnabled || !this.feedback?.improvedMessage?.trim()) return;
     this.voiceError = null;
     this.pending = { type: 'speak', text: this.feedback.improvedMessage, speaker: 'Coach' };
     return this.runPending();
   }
   async setVoiceEnabled(enabled) {
     this.voiceEnabled = enabled;
-    if (!enabled) this.voiceError = null;
-    if (!enabled && this.pending?.type === 'speak') { this.stop(); return this.recover(); }
+    if (!enabled) {
+      this.voiceError = null;
+      this._stopSpeech();
+    }
     this.emit();
   }
   stop() {
