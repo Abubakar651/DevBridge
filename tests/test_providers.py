@@ -250,3 +250,49 @@ def test_speech_segmentation_preserves_order_and_codepoints():
 
 def test_environment_parser_only_accepts_the_application_settings():
     assert parse_env('GROQ_API_KEY="value#123"\nPORT=4317 # comment\nUNRELATED_SECRET=ignore\nGEMINI_API_KEY=\n') == {"GROQ_API_KEY": "value#123", "PORT": "4317"}
+
+
+@pytest.mark.anyio
+async def test_orpheus_rate_limit_retries_once_and_preserves_rate_limit_over_fallback_terms():
+    # Case 1: transient 429 on voice key recovers on one bounded retry without switching keys
+    attempts = []
+
+    def recover_handler(request):
+        attempts.append(request.headers["authorization"])
+        if len(attempts) == 1:
+            return httpx.Response(429, headers={"retry-after": "0"}, json={"error": {"message": "burst"}})
+        return httpx.Response(200, content=wav_audio())
+
+    provider = Providers(settings(groq_voice_key="private-voice-value"), transport=httpx.MockTransport(recover_handler))
+    assert await provider.speak("Hello") == wav_audio()
+    assert attempts == ["Bearer private-voice-value", "Bearer private-voice-value"]
+
+    # Case 2: persistent 429 on voice key is not masked by primary key's MODEL_TERMS_REQUIRED
+    def masked_handler(request):
+        if request.headers["authorization"] == "Bearer private-voice-value":
+            return httpx.Response(429, json={"error": {"message": "rate limit"}})
+        return httpx.Response(400, json={"error": {"code": "model_terms_required"}})
+
+    provider = Providers(settings(groq_voice_key="private-voice-value"), transport=httpx.MockTransport(masked_handler))
+    with pytest.raises(AppError) as error:
+        await provider.speak("Hello")
+    assert error.value.code == "PROVIDER_RATE_LIMIT"
+    assert error.value.status == 429
+
+
+@pytest.mark.anyio
+async def test_transcribe_normalizes_mime_parameters_and_rejects_unsupported_mime():
+    provider = Providers(settings(), transport=httpx.MockTransport(lambda _request: httpx.Response(200, json={"text": ANSWER})))
+    assert await provider.transcribe(wav_audio(), "audio/webm;codecs=opus") == ANSWER
+    with pytest.raises(AppError) as error:
+        await provider.transcribe(wav_audio(), "audio/flac")
+    assert error.value.status == 415
+    assert error.value.code == "UNSUPPORTED_AUDIO"
+
+
+@pytest.mark.anyio
+async def test_gemini_strips_markdown_json_fences(context):
+    fenced = '```json\n' + json.dumps({"reply": QUESTION}) + '\n```'
+    response = httpx.Response(200, json={"status": "completed", "steps": [{"type": "model_output", "content": [{"type": "text", "text": fenced}]}]})
+    provider = Providers(settings(), transport=httpx.MockTransport(lambda _request: response))
+    assert await provider.roleplay(context, []) == QUESTION

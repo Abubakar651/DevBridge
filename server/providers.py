@@ -17,6 +17,23 @@ from .models import Context, Feedback, RoleplayResponse, validate_feedback
 from .prompts import COACH_PROMPT, ROLEPLAY_PROMPT
 
 logger = logging.getLogger(__name__)
+AUDIO_EXTENSIONS = {
+    "audio/webm": "webm",
+    "audio/ogg": "ogg",
+    "audio/mp4": "mp4",
+    "audio/mpeg": "mp3",
+    "audio/wav": "wav",
+    "audio/x-wav": "wav",
+}
+
+
+def _parse_json_output(content: str):
+    """Parse JSON model output, stripping optional Markdown code fences."""
+    text = content.strip()
+    fenced = re.match(r"^```(?:json)?\s*\n?(.*?)\n?```$", text, re.S | re.I)
+    if fenced:
+        text = fenced.group(1).strip()
+    return json.loads(text)
 
 
 class Providers:
@@ -27,15 +44,23 @@ class Providers:
         self.fallback_enabled = fallback_enabled
         self.reasoning_events = []
 
-    async def request(self, method: str, url: str, *, audio=False, **kwargs):
+    async def request(self, method: str, url: str, *, audio=False, retry_on_429=False, **kwargs):
         try:
             async with asyncio.timeout(self.settings.timeout_seconds):
                 async with httpx.AsyncClient(transport=self.transport, timeout=self.settings.timeout_seconds, follow_redirects=False) as client:
+                    retryable = (429, 502, 503, 504) if retry_on_429 else (502, 503, 504)
                     for attempt in range(2):
                         response = await client.request(method, url, **kwargs)
-                        if response.status_code not in (502, 503, 504) or attempt == 1:
+                        if response.status_code not in retryable or attempt == 1:
                             break
-                        await asyncio.sleep(self.settings.retry_delay_seconds)
+                        delay = self.settings.retry_delay_seconds
+                        if response.status_code == 429:
+                            raw_retry = response.headers.get("retry-after", "")
+                            try:
+                                delay = min(max(float(raw_retry), 0.0), 2.0) if raw_retry else (0.0 if delay == 0 else min(max(delay, 0.5), 2.0))
+                            except ValueError:
+                                delay = 0.0 if delay == 0 else min(max(delay, 0.5), 2.0)
+                        await asyncio.sleep(delay)
                     if not response.is_success:
                         try:
                             body = response.json()
@@ -88,7 +113,7 @@ class Providers:
             if data["status"] != "completed":
                 raise ValueError("Incomplete interaction")
             content = "".join(part.get("text", "") for step in data["steps"] if step.get("type") == "model_output" for part in step.get("content", []) if part.get("type") == "text")
-            return json.loads(content)
+            return _parse_json_output(content)
         except (KeyError, TypeError, ValueError, AttributeError):
             raise AppError(502, "The model did not finish a readable response. Please retry this step.", "INVALID_PROVIDER_OUTPUT") from None
 
@@ -124,7 +149,7 @@ class Providers:
             choice = data["choices"][0]
             if choice["finish_reason"] != "stop":
                 raise ValueError("Incomplete completion")
-            return json.loads(choice["message"]["content"])
+            return _parse_json_output(choice["message"]["content"])
         except (KeyError, IndexError, TypeError, ValueError, AttributeError):
             raise AppError(502, "The backup model did not finish a readable response. Please retry this step.", "INVALID_PROVIDER_OUTPUT") from None
 
@@ -166,15 +191,23 @@ class Providers:
                 voice_keys.append(key)
         if not voice_keys:
             raise AppError(503, "Groq voice is not configured. Turn spoken replies off and practise in text.", "GROQ_NOT_CONFIGURED")
+        audio = b""
+        rate_limit_error = None
         for index, voice_key in enumerate(voice_keys):
             try:
-                audio = await self.request("POST", "https://api.groq.com/openai/v1/audio/speech", audio=True,
+                audio = await self.request(
+                    "POST", "https://api.groq.com/openai/v1/audio/speech", audio=True, retry_on_429=True,
                     headers={"Authorization": f"Bearer {voice_key}"},
-                    json={"model": self.settings.tts_model, "input": text, "voice": self.settings.voice, "response_format": "wav"})
+                    json={"model": self.settings.tts_model, "input": text, "voice": self.settings.voice, "response_format": "wav"},
+                )
                 break
             except AppError as error:
                 has_backup_key = index + 1 < len(voice_keys)
+                if error.code == "PROVIDER_RATE_LIMIT":
+                    rate_limit_error = rate_limit_error or error
                 if not has_backup_key or error.code not in {"MODEL_TERMS_REQUIRED", "PROVIDER_ACCESS", "PROVIDER_RATE_LIMIT"}:
+                    if rate_limit_error and error.code in {"MODEL_TERMS_REQUIRED", "PROVIDER_ACCESS"}:
+                        raise rate_limit_error from None
                     raise
                 logger.warning("The preferred Groq voice credential failed (%s); trying the primary Groq credential.", error.code)
         if len(audio) < 44 or audio[:4] != b"RIFF" or audio[8:12] != b"WAVE":
@@ -184,10 +217,13 @@ class Providers:
     async def transcribe(self, audio: bytes, mime_type: str) -> str:
         if not self.settings.groq_key:
             raise AppError(503, "Groq transcription is not configured. Type your answer to continue.", "GROQ_NOT_CONFIGURED")
-        extension = {"audio/webm": "webm", "audio/ogg": "ogg", "audio/mp4": "mp4", "audio/mpeg": "mp3", "audio/wav": "wav", "audio/x-wav": "wav"}[mime_type]
+        base_mime = mime_type.split(";")[0].lower().strip()
+        extension = AUDIO_EXTENSIONS.get(base_mime)
+        if not extension:
+            raise AppError(415, "Use a supported audio recording format.", "UNSUPPORTED_AUDIO")
         data = await self.request("POST", "https://api.groq.com/openai/v1/audio/transcriptions",
             headers={"Authorization": f"Bearer {self.settings.groq_key}"},
-            files={"file": (f"answer.{extension}", audio, mime_type)},
+            files={"file": (f"answer.{extension}", audio, base_mime)},
             data={"model": self.settings.stt_model, "language": "en", "response_format": "json", "prompt": "Workplace project update, release, scope, software development, AI, machine learning, PDF export."})
         text = data.get("text", "") if isinstance(data, dict) else ""
         if not isinstance(text, str) or not text.strip():
