@@ -883,3 +883,39 @@ def test_web_session_preserves_start_with_answer_draft_and_avoids_stop_on_mute()
         }
         """
     )
+
+
+def test_web_index_html_apple_hig_structure_and_accessibility():
+    import re
+
+    html = (PROJECT_ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    assert '<meta name="color-scheme" content="light dark">' in html
+    assert '<section class="intro"' not in html
+    assert 'class="composer-dock"' in html
+    assert 'id="turn-steps"' in html
+    assert 'id="i-send"' in html
+
+    for required_id in (
+        "theme-auto", "theme-light", "theme-dark",
+        "brief-mode-brief", "brief-mode-edit", "scene-brief", "scene-toggle",
+        "facts-error", "goal-error",
+        "how-button", "setup-button", "voice-enabled",
+        "context-form", "discipline", "facts", "goal", "familiarity", "reset-scene-button",
+        "start-button", "record-button", "done-button", "play-button", "continue-button", "finish-button",
+        "stop-button", "reset-button", "answer-text", "send-button",
+        "starter-bar", "starter-full", "voice-notice", "retry-voice-button", "mute-voice-button", "dismiss-voice-button",
+        "feedback", "hear-example", "retry-button", "comparison",
+    ):
+        assert f'id="{required_id}"' in html, f"Missing required id={required_id}"
+
+    # Spoken replies toggle belongs inside the header/workspace rather than buried in a footer.
+    header_html = html[html.index("<header"):html.index("</header>")]
+    assert 'id="voice-enabled"' in header_html
+
+    # Explicit button types & dialog aria-labelledby contracts + strict CSP (no inline styles/scripts).
+    for open_tag in re.findall(r"<button\b[^>]*>", html):
+        assert 'type="button"' in open_tag or 'type="submit"' in open_tag, f"Button missing explicit type: {open_tag}"
+    for dialog_tag in re.findall(r"<dialog\b[^>]*>", html):
+        match = re.search(r'aria-labelledby="([^"]+)"', dialog_tag)
+        assert match and f'id="{match.group(1)}"' in html, f"Dialog missing valid aria-labelledby: {dialog_tag}"
+    assert "style=" not in html and "<style" not in html and html.count("<script") == 1
