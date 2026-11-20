@@ -14,6 +14,7 @@ if __name__ == "__main__" and not __package__:
     raise SystemExit(0)
 
 import asyncio
+import logging
 from typing import Annotated
 from urllib.parse import urlsplit
 
@@ -22,15 +23,18 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import Field, StringConstraints
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import ClientDisconnect
 
 from .config import PROJECT_ROOT, load_settings
 from .errors import AppError
-from .models import Context, Model, SpeechRequest
+from .models import Context, MAX_ANSWERS, Model, SpeechRequest
 from .providers import Providers
 from .scenario import DEFAULT_CONTEXT, SCENARIO
 from .sessions import PracticeStore
 from .speech import speech_segments
+
+logger = logging.getLogger(__name__)
 
 MAX_AUDIO = 5 * 1024 * 1024
 AUDIO_TYPES = {"audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg", "audio/wav", "audio/x-wav"}
@@ -67,7 +71,6 @@ class LocalMiddleware:
             return await self.app(scope, receive, send)
         headers = dict(scope["headers"])
         host = headers.get(b"host", b"").decode("latin1")
-        settings = self.settings_loader()
         security_headers = {
             "cache-control": "no-store", "x-content-type-options": "nosniff", "referrer-policy": "no-referrer",
             "permissions-policy": "microphone=(self), camera=()",
@@ -80,6 +83,11 @@ class LocalMiddleware:
             await send(message)
 
         try:
+            try:
+                settings = self.settings_loader()
+            except ValueError:
+                logger.exception("Failed to load server settings.")
+                raise AppError(500, "Server configuration is invalid. Check .env settings and try again.", "CONFIGURATION_ERROR") from None
             parsed = urlsplit("http://" + host)
             if not host or parsed.hostname not in {"localhost", "127.0.0.1", "::1", settings.host} or parsed.username or parsed.password:
                 raise AppError(403, "Use this app from its local server address.", "INVALID_ORIGIN")
@@ -89,7 +97,10 @@ class LocalMiddleware:
             if headers.get(b"sec-fetch-site") == b"cross-site":
                 raise AppError(403, "Cross-site requests are not accepted.", "INVALID_ORIGIN")
             limit = MAX_AUDIO if scope["path"] == "/api/transcribe" else 64 * 1024
-            if int(headers.get(b"content-length", b"0")) > limit:
+            content_length = int(headers.get(b"content-length", b"0"))
+            if content_length < 0:
+                raise AppError(400, "Invalid Content-Length header.", "INVALID_INPUT")
+            if content_length > limit:
                 raise AppError(413, "This request is too large. Keep recordings under 5 MB.", "PAYLOAD_TOO_LARGE")
         except (ValueError, AppError) as error:
             return await error_response(error if isinstance(error, AppError) else AppError(400, "Invalid request headers.", "INVALID_INPUT"))(scope, receive, secure_send)
@@ -169,11 +180,25 @@ def create_app(*, settings_loader=load_settings, provider_factory=Providers, sto
     async def disconnected(_request, _error):
         return Response(status_code=499)
 
+    @app.exception_handler(StarletteHTTPException)
+    async def http_error(_request, error):
+        codes = {
+            404: ("NOT_FOUND", "The requested resource was not found."),
+            405: ("METHOD_NOT_ALLOWED", "This HTTP method is not allowed for this endpoint."),
+        }
+        code, message = codes.get(error.status_code, ("REQUEST_FAILED", "This request could not be completed."))
+        return error_response(AppError(error.status_code, message, code))
+
+    @app.exception_handler(Exception)
+    async def unexpected_error(_request, _error):
+        logger.exception("Unhandled error in request handler.")
+        return error_response(AppError(500, "Something went wrong on the local server. Please try again.", "INTERNAL_ERROR"))
+
     @app.get("/api/config")
     async def configuration():
         practices.prune()
         settings = settings_loader()
-        return {"mode": mode, "configured": {"gemini": bool(settings.gemini_key), "groq": bool(settings.groq_key), "coaching": bool(settings.gemini_key or settings.groq_key), "speech": bool(settings.groq_voice_key or settings.groq_key)}, "scenario": SCENARIO, "defaultContext": DEFAULT_CONTEXT, "maxAnswers": 3, "maxRecordingSeconds": 60}
+        return {"mode": mode, "configured": {"gemini": bool(settings.gemini_key), "groq": bool(settings.groq_key), "coaching": bool(settings.gemini_key or settings.groq_key), "speech": bool(settings.groq_voice_key or settings.groq_key)}, "scenario": SCENARIO, "defaultContext": DEFAULT_CONTEXT, "maxAnswers": MAX_ANSWERS, "maxRecordingSeconds": 60}
 
     @app.post("/api/practice")
     async def start(body: StartRequest):

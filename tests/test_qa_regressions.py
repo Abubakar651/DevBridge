@@ -298,3 +298,43 @@ def test_validate_feedback_allows_grounded_release_after_approval_phrasing(conte
         val = feedback_value(history)
         val["improvedMessage"] = sentence
         assert validate_feedback(val, history, context)
+
+
+@pytest.mark.anyio
+async def test_middleware_handles_broken_settings_loader_and_negative_content_length():
+    def bad_loader():
+        raise ValueError("PORT must be a valid port number.")
+
+    broken_app = create_app(settings_loader=bad_loader)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=broken_app), base_url="http://127.0.0.1") as client:
+        resp = await client.get("/api/config")
+        assert resp.status_code == 500
+        assert resp.json()["error"]["code"] == "CONFIGURATION_ERROR"
+
+    ok_app = create_app(settings_loader=lambda: Settings(gemini_key="k", groq_key="g"))
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=ok_app), base_url="http://127.0.0.1") as client:
+        resp = await client.post("/api/practice", content=b"{}", headers={"content-type": "application/json", "content-length": "-5"})
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "INVALID_INPUT"
+
+
+@pytest.mark.anyio
+async def test_api_returns_json_error_envelopes_for_http_and_unexpected_errors():
+    class ExplodingStore(PracticeStore):
+        def create(self, context, request_id):
+            raise RuntimeError("sensitive internal detail")
+
+    app = create_app(settings_loader=lambda: Settings(gemini_key="k", groq_key="g"), store=ExplodingStore())
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app, raise_app_exceptions=False), base_url="http://127.0.0.1") as client:
+        missing = await client.get("/api/does-not-exist")
+        assert missing.status_code == 404
+        assert missing.json()["error"]["code"] == "NOT_FOUND"
+
+        wrong_method = await client.post("/api/config")
+        assert wrong_method.status_code == 405
+        assert wrong_method.json()["error"]["code"] == "METHOD_NOT_ALLOWED"
+
+        boom = await client.post("/api/practice", json={"context": DEFAULT_CONTEXT, "requestId": uid()})
+        assert boom.status_code == 500
+        assert boom.json()["error"]["code"] == "INTERNAL_ERROR"
+        assert "sensitive internal detail" not in boom.text
