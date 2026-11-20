@@ -35,7 +35,8 @@ def parse_env(content: str) -> dict[str, str]:
                     escaped = False
             value = value[1:end] if end is not None else value[1:]
         else:
-            value = re.sub(r"\s+#.*$", "", value).strip()
+            value = re.sub(r"\s+#.*$", "", value)
+        value = value.strip()
         if value:
             values[match[1]] = value
     return values
@@ -59,11 +60,22 @@ class Settings:
 
 def load_settings(environment: Mapping[str, str] | None = None) -> Settings:
     values = {}
-    for path in (PROJECT_ROOT.parents[2] / ".env", PROJECT_ROOT / ".env"):
+    env_paths = [
+        *(PROJECT_ROOT.parents[i] / ".env" for i in (2, 1) if len(PROJECT_ROOT.parents) > i),
+        PROJECT_ROOT / ".env",
+    ]
+    for path in env_paths:
         if path.is_file():
             values.update(parse_env(path.read_text(encoding="utf-8")))
-    values.update({key: value for key, value in (environment if environment is not None else os.environ).items() if key in ENV_KEYS and value})
-    port = int(values.get("PORT", "4317"))
+    for key, raw_value in (environment if environment is not None else os.environ).items():
+        if key in ENV_KEYS and isinstance(raw_value, str):
+            cleaned = raw_value.strip()
+            if cleaned:
+                values[key] = cleaned
+    try:
+        port = int(values.get("PORT", "4317"))
+    except ValueError:
+        raise ValueError("PORT must be a valid port number.") from None
     if not 0 <= port <= 65535:
         raise ValueError("PORT must be a valid port number.")
     return Settings(

@@ -3,6 +3,7 @@
 import asyncio
 import json
 import uuid
+from pathlib import Path
 from unittest.mock import patch
 
 import httpx
@@ -225,6 +226,36 @@ async def test_chunked_oversize_json_body_returns_413_error_envelope():
 def test_parse_env_handles_quotes_inside_inline_comments():
     parsed = parse_env('GROQ_API_KEY="abc" # note "quoted"\n')
     assert parsed["GROQ_API_KEY"] == "abc"
+
+
+def test_parse_env_trims_quoted_values_and_ignores_blank_quotes():
+    parsed = parse_env('HOST=" 127.0.0.1 "\nGEMINI_MODEL=\' gemini-3.5-flash-lite \'\nGROQ_API_KEY="   "\n')
+    assert parsed == {"HOST": "127.0.0.1", "GEMINI_MODEL": "gemini-3.5-flash-lite"}
+
+
+def test_load_settings_checks_workspace_parent_and_shallow_paths(tmp_path):
+    workspace = tmp_path / "Internships"
+    project = workspace / "NETSOL" / "Voice_Coach"
+    project.mkdir(parents=True)
+    (workspace / ".env").write_text("GEMINI_API_KEY=ws-gem\nHOST=localhost\n", encoding="utf-8")
+
+    with patch("server.config.PROJECT_ROOT", project):
+        s1 = load_settings({})
+        assert s1.gemini_key == "ws-gem"
+        assert s1.host == "localhost"
+
+        # Whitespace-only environment override must not clobber a valid .env key
+        s2 = load_settings({"GEMINI_API_KEY": "   "})
+        assert s2.gemini_key == "ws-gem"
+
+    with patch("server.config.PROJECT_ROOT", Path("/app")):
+        s3 = load_settings({})
+        assert s3.port == 4317
+
+
+def test_load_settings_rejects_non_numeric_port_with_clear_error():
+    with pytest.raises(ValueError, match=r"^PORT must be a valid port number\.$"):
+        load_settings({"PORT": "abc"})
 
 
 def test_validate_feedback_rejects_number_words_absent_from_facts(context):
