@@ -17,7 +17,9 @@ async def main(args):
     if args.model:
         settings = replace(settings, gemini_model=args.model)
     if args.groq_only:
-        settings = replace(settings, gemini_key="")
+        settings = replace(settings, gemini_key="", openrouter_key="")
+    elif args.openrouter_only:
+        settings = replace(settings, gemini_key="", groq_key="")
     diagnostic = (lambda detail: print(json.dumps({"providerDiagnostic": detail}))) if args.diagnostic else None
     provider = Providers(settings, diagnostic=diagnostic, fallback_enabled=not args.gemini_only)
     results = []
@@ -43,7 +45,7 @@ async def main(args):
             return {"transcription": text, "model": settings.stt_model}
         await check("Groq Whisper input", whisper)
     else:
-        if not (args.gemini_only or args.groq_only or args.text_only):
+        if not (args.gemini_only or args.groq_only or args.openrouter_only or args.text_only):
             async def speech():
                 audio = await provider.speak("DevBridge is ready for practice.")
                 text = await provider.transcribe(audio, "audio/wav")
@@ -70,7 +72,8 @@ if __name__ == "__main__":
     mode.add_argument("--voice-only", action="store_true", help="Only test Orpheus output and Whisper input.")
     mode.add_argument("--text-only", action="store_true", help="Test Gemini role-play/coaching with automatic Groq fallback.")
     mode.add_argument("--gemini-only", action="store_true", help="Test Gemini without fallback or speech.")
-    mode.add_argument("--groq-only", action="store_true", help="Test backup reasoning with Gemini deliberately unconfigured; no speech.")
+    mode.add_argument("--groq-only", action="store_true", help="Test Groq backup reasoning with Gemini and OpenRouter deliberately unconfigured; no speech.")
+    mode.add_argument("--openrouter-only", action="store_true", help="Test OpenRouter backup reasoning with Gemini and Groq deliberately unconfigured; no speech.")
     mode.add_argument("--list-gemini-models", action="store_true")
     mode.add_argument("--whisper-audio", help="WAV containing a short DevBridge practice test phrase.")
     parser.add_argument("--model", help="Test an alternate Gemini model without changing .env.")

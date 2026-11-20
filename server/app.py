@@ -198,7 +198,7 @@ def create_app(*, settings_loader=load_settings, provider_factory=Providers, sto
     async def configuration():
         practices.prune()
         settings = settings_loader()
-        return {"mode": mode, "configured": {"gemini": bool(settings.gemini_key), "groq": bool(settings.groq_key), "coaching": bool(settings.gemini_key or settings.groq_key), "speech": bool(settings.groq_voice_key or settings.groq_key)}, "scenario": SCENARIO, "defaultContext": DEFAULT_CONTEXT, "maxAnswers": MAX_ANSWERS, "maxRecordingSeconds": 60}
+        return {"mode": mode, "configured": {"gemini": bool(settings.gemini_key), "groq": bool(settings.groq_key), "coaching": bool(settings.gemini_key or settings.groq_key or settings.openrouter_key), "speech": bool(settings.groq_voice_key or settings.groq_key)}, "scenario": SCENARIO, "defaultContext": DEFAULT_CONTEXT, "maxAnswers": MAX_ANSWERS, "maxRecordingSeconds": 60}
 
     @app.post("/api/practice")
     async def start(body: StartRequest):

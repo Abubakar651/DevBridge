@@ -296,3 +296,19 @@ async def test_gemini_strips_markdown_json_fences(context):
     response = httpx.Response(200, json={"status": "completed", "steps": [{"type": "model_output", "content": [{"type": "text", "text": fenced}]}]})
     provider = Providers(settings(), transport=httpx.MockTransport(lambda _request: response))
     assert await provider.roleplay(context, []) == QUESTION
+
+
+@pytest.mark.anyio
+async def test_openrouter_key_is_redacted_and_402_maps_to_provider_quota(context):
+    reports = []
+    provider = Providers(
+        Settings(openrouter_key="sk-or-v1-secret-test-value", retry_delay_seconds=0),
+        diagnostic=reports.append,
+        transport=httpx.MockTransport(lambda _request: httpx.Response(402, json={"error": {"message": "Insufficient credits for sk-or-v1-secret-test-value"}})),
+    )
+    with pytest.raises(AppError) as error:
+        await provider.roleplay(context, [])
+    assert error.value.code == "PROVIDER_QUOTA"
+    assert "sk-or-v1" not in str(error.value)
+    assert "sk-or-v1" not in json.dumps(reports)
+    assert any(report.get("status") == 402 and "[redacted]" in report.get("message", "") for report in reports)

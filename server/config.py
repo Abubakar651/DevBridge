@@ -10,8 +10,9 @@ from typing import Mapping
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ENV_KEYS = {
-    "GEMINI_API_KEY", "GOOGLE_API_KEY", "GROQ_API_KEY", "GROQ_API_KEY2", "GROQ_API_KEY_2", "GEMINI_MODEL",
-    "GROQ_STT_MODEL", "GROQ_TTS_MODEL", "GROQ_TTS_VOICE", "GROQ_REASONING_MODEL", "HOST", "PORT",
+    "GEMINI_API_KEY", "GOOGLE_API_KEY", "GROQ_API_KEY", "GROQ_API_KEY2", "GROQ_API_KEY_2", "OPENROUTER_API_KEY",
+    "GEMINI_MODEL", "GROQ_STT_MODEL", "GROQ_TTS_MODEL", "GROQ_TTS_VOICE", "GROQ_REASONING_MODEL", "OPENROUTER_MODEL",
+    "HOST", "PORT",
 }
 
 
@@ -47,8 +48,10 @@ class Settings:
     gemini_key: str = field(default="", repr=False)
     groq_key: str = field(default="", repr=False)
     groq_voice_key: str = field(default="", repr=False)
+    openrouter_key: str = field(default="", repr=False)
     gemini_model: str = "gemini-3.5-flash-lite"
     groq_reasoning_model: str = "openai/gpt-oss-20b"
+    openrouter_model: str = "openai/gpt-oss-20b"
     stt_model: str = "whisper-large-v3-turbo"
     tts_model: str = "canopylabs/orpheus-v1-english"
     voice: str = "troy"
@@ -82,8 +85,10 @@ def load_settings(environment: Mapping[str, str] | None = None) -> Settings:
         gemini_key=values.get("GEMINI_API_KEY") or values.get("GOOGLE_API_KEY", ""),
         groq_key=values.get("GROQ_API_KEY", ""),
         groq_voice_key=values.get("GROQ_API_KEY2") or values.get("GROQ_API_KEY_2", ""),
+        openrouter_key=values.get("OPENROUTER_API_KEY", ""),
         gemini_model=values.get("GEMINI_MODEL", Settings.gemini_model),
         groq_reasoning_model=values.get("GROQ_REASONING_MODEL", Settings.groq_reasoning_model),
+        openrouter_model=values.get("OPENROUTER_MODEL", Settings.openrouter_model),
         stt_model=values.get("GROQ_STT_MODEL", Settings.stt_model),
         tts_model=values.get("GROQ_TTS_MODEL", Settings.tts_model),
         voice=values.get("GROQ_TTS_VOICE", Settings.voice),

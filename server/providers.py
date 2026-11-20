@@ -70,14 +70,16 @@ class Providers:
                         if not isinstance(upstream, dict):
                             upstream = {}
                         if self.diagnostic:
-                            message = str(upstream.get("message", "No diagnostic message."))
-                            for key in (self.settings.gemini_key, self.settings.groq_key, self.settings.groq_voice_key):
+                            message = str(upstream.get("message") or "No diagnostic message.")
+                            for key in (self.settings.gemini_key, self.settings.groq_key, self.settings.groq_voice_key, self.settings.openrouter_key):
                                 if key:
                                     message = message.replace(key, "[redacted]")
-                            message = re.sub(r"(?:gsk_[A-Za-z0-9_-]+|AIza[A-Za-z0-9_-]+)", "[redacted]", message)
+                            message = re.sub(r"(?:gsk_[A-Za-z0-9_-]+|AIza[A-Za-z0-9_-]+|sk-or-v1-[A-Za-z0-9_-]+)", "[redacted]", message)
                             self.diagnostic({"status": response.status_code, "code": upstream.get("code", upstream.get("status")), "message": message[:600]})
                         if upstream.get("code") == "model_terms_required":
                             raise AppError(503, "Groq voice needs an organization admin to review and accept the Orpheus model terms in the Groq console. Turn spoken replies off to continue in text.", "MODEL_TERMS_REQUIRED")
+                        if response.status_code == 402:
+                            raise AppError(502, "The provider account reached its credit or spend limit.", "PROVIDER_QUOTA")
                         if response.status_code in (401, 403):
                             raise AppError(502, "The provider rejected access. Check the server key, model permissions and account setup.", "PROVIDER_ACCESS")
                         if response.status_code == 429:
@@ -132,55 +134,93 @@ class Providers:
     async def coach(self, context: Context, history: list[dict], previous_history: list[dict] | None = None) -> Feedback:
         return await self.reasoning(COACH_PROMPT, {"context": context.model_dump(by_alias=True), "currentAttempt": history, "previousAttempt": previous_history}, Feedback.model_json_schema(), lambda value: validate_feedback(value, history, context, previous_history), task="coach")
 
-    async def groq_reasoning(self, system: str, payload: dict, schema: dict):
-        if not self.settings.groq_key:
-            raise AppError(503, "The backup coach is not configured. Add a Groq API key on the server.", "GROQ_NOT_CONFIGURED")
-        data = await self.request(
-            "POST", "https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {self.settings.groq_key}"},
-            json={
-                "model": self.settings.groq_reasoning_model,
-                "messages": [{"role": "system", "content": system}, {"role": "user", "content": json.dumps(payload)}],
-                "response_format": {"type": "json_schema", "json_schema": {"name": "voice_coach", "strict": True, "schema": schema}},
-                "reasoning_effort": "medium", "temperature": 0.4, "max_completion_tokens": 4096,
-            },
-        )
+    async def _chat_completion_reasoning(self, *, url: str, api_key: str, not_configured_code: str, not_configured_message: str, model: str, system: str, payload: dict, schema: dict, extra_body: dict | None = None):
+        if not api_key:
+            raise AppError(503, not_configured_message, not_configured_code)
+        body = {
+            "model": model,
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": json.dumps(payload)}],
+            "response_format": {"type": "json_schema", "json_schema": {"name": "voice_coach", "strict": True, "schema": schema}},
+            "reasoning_effort": "medium", "temperature": 0.4, "max_completion_tokens": 4096,
+            **(extra_body or {}),
+        }
+        data = await self.request("POST", url, headers={"Authorization": f"Bearer {api_key}"}, json=body)
         try:
             choice = data["choices"][0]
             if choice["finish_reason"] != "stop":
+                logger.warning("Chat completion stopped with finish_reason=%r (provider=%r).", choice.get("finish_reason"), data.get("provider"))
                 raise ValueError("Incomplete completion")
             return _parse_json_output(choice["message"]["content"])
         except (KeyError, IndexError, TypeError, ValueError, AttributeError):
+            logger.warning("Unreadable chat completion output from provider=%r.", data.get("provider") if isinstance(data, dict) else None)
             raise AppError(502, "The backup model did not finish a readable response. Please retry this step.", "INVALID_PROVIDER_OUTPUT") from None
 
+    async def groq_reasoning(self, system: str, payload: dict, schema: dict):
+        return await self._chat_completion_reasoning(
+            url="https://api.groq.com/openai/v1/chat/completions",
+            api_key=self.settings.groq_key,
+            not_configured_code="GROQ_NOT_CONFIGURED",
+            not_configured_message="The backup coach is not configured. Add a Groq API key on the server.",
+            model=self.settings.groq_reasoning_model,
+            system=system, payload=payload, schema=schema,
+        )
+
+    async def openrouter_reasoning(self, system: str, payload: dict, schema: dict):
+        return await self._chat_completion_reasoning(
+            url="https://openrouter.ai/api/v1/chat/completions",
+            api_key=self.settings.openrouter_key,
+            not_configured_code="OPENROUTER_NOT_CONFIGURED",
+            not_configured_message="OpenRouter is not configured. Add an OpenRouter API key on the server.",
+            model=self.settings.openrouter_model,
+            system=system, payload=payload, schema=schema,
+            extra_body={"provider": {"require_parameters": True}},
+        )
+
+    async def _run_backup_with_retry(self, provider_name: str, caller, system: str, payload: dict, schema: dict, validate, *, task: str):
+        for attempt in range(2):
+            try:
+                return validate(await caller(system, payload, schema))
+            except AppError as backup_error:
+                if backup_error.code != "INVALID_PROVIDER_OUTPUT" or attempt == 1:
+                    raise
+                hint = backup_error.validation_hint or "Return a complete JSON response matching the supplied schema."
+                logger.warning("%s output failed validation for %s; regenerating once.", provider_name.capitalize(), task)
+                event = {"event": "reasoning_validation_retry", "task": task, "provider": provider_name, "hint": hint}
+                self.reasoning_events.append(event)
+                if self.diagnostic:
+                    self.diagnostic(event)
+                system += "\nSERVER VALIDATION: Your previous response was rejected. " + hint + " Regenerate from the original context and transcript. Copy evidence exactly, including punctuation. Keep existing readiness, timing and approval authority unchanged. Do not introduce an unprovided sprint, cycle, iteration, release, week, benefit or commitment."
+
     async def reasoning(self, system, payload, schema, validate, *, task):
-        """Use the same inputs and validators on both providers; cancellation never falls back."""
+        """Use the same inputs and validators across Gemini, Groq, and OpenRouter; cancellation never falls back."""
         selected, model = "gemini", self.settings.gemini_model
         try:
             result = validate(await self.gemini(system, payload, schema))
         except AppError as error:
-            if not self.fallback_enabled or not self.settings.groq_key:
+            backups = []
+            if self.settings.groq_key:
+                backups.append(("groq", self.settings.groq_reasoning_model, self.groq_reasoning))
+            if self.settings.openrouter_key:
+                backups.append(("openrouter", self.settings.openrouter_model, self.openrouter_reasoning))
+            if not self.fallback_enabled or not backups:
                 raise
-            event = {"event": "reasoning_fallback", "task": task, "from": "gemini", "to": "groq", "code": error.code, "model": self.settings.groq_reasoning_model}
-            self.reasoning_events.append(event)
-            if self.diagnostic:
-                self.diagnostic(event)
-            logger.warning("Gemini failed (%s); using Groq %s for %s.", error.code, self.settings.groq_reasoning_model, task)
-            selected, model = "groq", self.settings.groq_reasoning_model
-            for attempt in range(2):
+            current_error = error
+            previous_provider = "gemini"
+            for index, (backup_name, backup_model, caller) in enumerate(backups):
+                event = {"event": "reasoning_fallback", "task": task, "from": previous_provider, "to": backup_name, "code": current_error.code, "model": backup_model}
+                self.reasoning_events.append(event)
+                if self.diagnostic:
+                    self.diagnostic(event)
+                logger.warning("%s failed (%s); using %s %s for %s.", previous_provider.capitalize(), current_error.code, backup_name, backup_model, task)
+                selected, model = backup_name, backup_model
                 try:
-                    result = validate(await self.groq_reasoning(system, payload, schema))
+                    result = await self._run_backup_with_retry(backup_name, caller, system, payload, schema, validate, task=task)
                     break
                 except AppError as backup_error:
-                    if backup_error.code != "INVALID_PROVIDER_OUTPUT" or attempt == 1:
+                    if index + 1 == len(backups):
                         raise
-                    hint = backup_error.validation_hint or "Return a complete JSON response matching the supplied schema."
-                    logger.warning("Groq output failed validation for %s; regenerating once.", task)
-                    event = {"event": "reasoning_validation_retry", "task": task, "provider": "groq", "hint": hint}
-                    self.reasoning_events.append(event)
-                    if self.diagnostic:
-                        self.diagnostic(event)
-                    system += "\nSERVER VALIDATION: Your previous response was rejected. " + hint + " Regenerate from the original context and transcript. Copy evidence exactly, including punctuation. Keep existing readiness, timing and approval authority unchanged. Do not introduce an unprovided sprint, cycle, iteration, release, week, benefit or commitment."
+                    current_error = backup_error
+                    previous_provider = backup_name
         self.reasoning_events.append({"event": "reasoning_success", "task": task, "provider": selected, "model": model})
         return result
 

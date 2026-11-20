@@ -231,3 +231,72 @@ async def test_primary_can_recover_on_the_next_turn(context):
     assert await provider.roleplay(context, []) == QUESTION
     successes = [event["provider"] for event in provider.reasoning_events if event["event"] == "reasoning_success"]
     assert successes == ["groq", "gemini"]
+
+
+@pytest.mark.anyio
+async def test_groq_rate_limit_falls_back_to_openrouter_with_same_validators(context):
+    calls = []
+    history = [{"role": "assistant", "content": QUESTION}, {"role": "user", "content": ANSWER}]
+
+    def handler(request):
+        body = json.loads(request.content)
+        calls.append((request, body))
+        if request.url.host == "generativelanguage.googleapis.com":
+            return httpx.Response(429, json={"error": {"message": "gemini quota"}})
+        if request.url.host == "api.groq.com":
+            return httpx.Response(429, json={"error": {"message": "groq 8000 tpm"}})
+        return completion(feedback_value(history))
+
+    provider = Providers(configured(openrouter_key="private-openrouter"), transport=httpx.MockTransport(handler))
+    expected = feedback_value(history)
+    notes = await provider.coach(context, history)
+    assert notes.strength.quote == expected["strength"]["quote"]
+    assert calls[-1][0].url.host == "openrouter.ai"
+    assert calls[-1][0].url.path == "/api/v1/chat/completions"
+    assert calls[-1][0].headers["authorization"] == "Bearer private-openrouter"
+    assert calls[-1][1]["model"] == "openai/gpt-oss-20b"
+    assert calls[-1][1]["provider"] == {"require_parameters": True}
+    assert calls[-1][1]["response_format"]["json_schema"]["strict"] is True
+    assert provider.reasoning_events[-1]["provider"] == "openrouter"
+
+
+@pytest.mark.anyio
+async def test_openrouter_only_supports_single_validation_retry(context):
+    history = [{"role": "assistant", "content": QUESTION}, {"role": "user", "content": ANSWER}]
+    calls = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        calls.append(body)
+        value = feedback_value(history)
+        if len(calls) == 1:
+            value["improvedMessage"] += " PDF export ships next sprint."
+        return completion(value)
+
+    provider = Providers(Settings(openrouter_key="private-openrouter", retry_delay_seconds=0), transport=httpx.MockTransport(handler))
+    notes = await provider.coach(context, history)
+    assert notes.improved_message == feedback_value(history)["improvedMessage"]
+    assert len(calls) == 2
+    assert "SERVER VALIDATION" in calls[1]["messages"][0]["content"]
+    assert provider.reasoning_events[-1]["provider"] == "openrouter"
+
+
+@pytest.mark.anyio
+async def test_cancellation_during_groq_does_not_fall_back_to_openrouter(context):
+    entered = asyncio.Event()
+    calls = []
+
+    async def handler(request):
+        calls.append(request.url.host)
+        if request.url.host == "generativelanguage.googleapis.com":
+            return httpx.Response(429)
+        entered.set()
+        await asyncio.Event().wait()
+
+    provider = Providers(configured(openrouter_key="private-openrouter"), transport=httpx.MockTransport(handler))
+    task = asyncio.create_task(provider.roleplay(context, []))
+    await entered.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert "openrouter.ai" not in calls

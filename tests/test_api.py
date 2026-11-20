@@ -52,6 +52,15 @@ async def test_groq_alone_is_sufficient_to_enable_coaching():
 
 
 @pytest.mark.anyio
+async def test_openrouter_alone_is_sufficient_to_enable_coaching():
+    app = create_app(settings_loader=lambda: Settings(openrouter_key="private-test-openrouter"))
+    async with client_for(app) as client:
+        response = await client.get("/api/config")
+        assert response.json()["configured"] == {"gemini": False, "groq": False, "coaching": True, "speech": False}
+        assert "private-test-openrouter" not in response.text
+
+
+@pytest.mark.anyio
 async def test_rejects_foreign_origins_host_rebinding_and_invalid_inputs(setup_app):
     app, provider = setup_app
     async with client_for(app) as client:
