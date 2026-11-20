@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal
 import re
 from typing import Annotated, Literal
 
@@ -55,36 +56,152 @@ class Feedback(Model):
     comparison: str = Field(max_length=900)
 
 
+_TYPOGRAPHIC_TRANSLATION = str.maketrans({
+    "\u2018": "'", "\u2019": "'", "\u201a": "'", "\u201b": "'", "\u02bc": "'", "\u2032": "'",
+    "\u201c": '"', "\u201d": '"', "\u201e": '"', "\u201f": '"', "\u2033": '"',
+    "\u2010": "-", "\u2011": "-",
+    "\u200b": "", "\u200c": "", "\u200d": "", "\ufeff": "",
+})
+
+
+def normalize_punctuation(value: str) -> str:
+    """Collapse whitespace and normalize curly quotes, apostrophes, and Unicode hyphens."""
+    return " ".join(value.translate(_TYPOGRAPHIC_TRANSLATION).split())
+
+
 def normalize(value: str) -> str:
-    return " ".join(value.casefold().split())
+    """Normalize typography, whitespace, and case for grounded substring matching."""
+    return normalize_punctuation(value).casefold()
 
 
-NUMBER_WORDS = {
-    "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
-    "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
-    "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14,
-    "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18,
-    "nineteen": 19, "twenty": 20, "thirty": 30, "forty": 40,
-    "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90,
+_UNITS = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+    "six": 6, "seven": 7, "eight": 8, "nine": 9,
 }
+_TENS = {
+    "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50,
+    "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90,
+}
+NUMBER_WORDS = {
+    "zero": 0, **_UNITS, "ten": 10, "eleven": 11, "twelve": 12,
+    "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16,
+    "seventeen": 17, "eighteen": 18, "nineteen": 19, **_TENS,
+}
+_COMPOUND_NUMBER_PATTERN = re.compile(r"\b(" + "|".join(_TENS) + r")[-\s]+(" + "|".join(_UNITS) + r")\b", re.I)
 NUMBER_WORD_PATTERN = re.compile(r"\b(?:" + "|".join(NUMBER_WORDS) + r")\b", re.I)
-QUANTITY = r"(?:\d+|" + "|".join(NUMBER_WORDS) + r")"
+_MULTIPLIERS = (
+    (re.compile(r"(?:\b(\d+)\s+|\ba\s+|\b)hundred(?:\s+(?:and\s+)?(\d{1,2}))?\b", re.I), 100),
+    (re.compile(r"(?:\b(\d+(?:\.\d+)?)\s+|\ba\s+|\b)thousand(?:\s+(?:and\s+)?(\d{1,3}))?\b", re.I), 1_000),
+    (re.compile(r"(?:\b(\d+(?:\.\d+)?)\s+|\ba\s+|\b)million\b", re.I), 1_000_000),
+    (re.compile(r"(?:\b(\d+(?:\.\d+)?)\s+|\ba\s+|\b)billion\b", re.I), 1_000_000_000),
+)
+QUANTITY = r"(?:\d+(?:\s*(?:-|to)\s*\d+)?|(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)(?:[-\s]+(?:one|two|three|four|five|six|seven|eight|nine))?|" + "|".join(NUMBER_WORDS) + r")"
+_DELIVERY_VERB = r"(?:will|would|can|could|should|is|are)\s+(?:be\s+)?(?:ready|deliver(?:ed)?|complet(?:e|ed)|finish(?:ed)?|available|releas(?:e|ed)|ship(?:ped)?|launch(?:ed)?)"
+_DURATION_DAYS = QUANTITY + r"\s+(?:(?:additional|more|extra)\s+)?(?:(?:working|business)\s+)?days?"
 DELIVERY_TIMING_PATTERNS = (
-    re.compile(r"\b(?:will|would|can|could|should|is|are)\s+(?:be\s+)?(?:ready|delivered|completed|finished|available|released|shipped|launched)\s+(?:in|within|after|by)\s+(?:the\s+next\s+)?" + QUANTITY + r"\s+(?:additional\s+)?(?:working\s+)?days?\b", re.I),
-    re.compile(r"\b(?:will|would|can|could|should|is|are)\s+(?:be\s+)?(?:ready|delivered|completed|finished|available|released|shipped|launched)\s+for\s+(?:the\s+next\s+)?" + QUANTITY + r"\b", re.I),
-    re.compile(r"\bfor\s+the\s+next\s+" + QUANTITY + r"\s+(?:additional\s+)?(?:working\s+)?days?\b", re.I),
-    re.compile(r"\b" + QUANTITY + r"\s+(?:additional\s+)?(?:working\s+)?days?\s+(?:after|later|from)\b", re.I),
+    re.compile(r"\b" + _DELIVERY_VERB + r"\s+(?:in|within|after|by)\s+(?:the\s+next\s+)?" + _DURATION_DAYS + r"\b", re.I),
+    re.compile(r"\b" + _DELIVERY_VERB + r"\s+for\s+(?:the\s+next\s+)?" + QUANTITY + r"\b", re.I),
+    re.compile(r"\bfor\s+the\s+next\s+" + _DURATION_DAYS + r"\b", re.I),
+    re.compile(r"\b" + _DURATION_DAYS + r"\s+(?:after|later|from)\b", re.I),
 )
 ZERO_IMPACT_PATTERNS = (
     re.compile(r"\bthere(?:\s+is|'s)\s+no\s+customer\s+impact\b", re.I),
     re.compile(r"\bno\s+customer\s+impact\s+(?:to\s+consider|exists|is\s+expected)\b", re.I),
     re.compile(r"\b(?:zero|without\s+any)\s+customer\s+impact\b", re.I),
-    re.compile(r"\bcustomer\s+impact\s+(?:is|was|will\s+be)\s+(?:zero|none|nonexistent)\b", re.I),
+    re.compile(r"\bcustomer\s+impact\s+(?:is|was|will\s+be)\s+(?:zero|none|non-?existent)\b", re.I),
+    re.compile(r"\b(?:has|have|had|carries|poses|creates|causes)\s+no\s+customer\s+impact\b", re.I),
+)
+
+_WEEKDAY_PATTERN = re.compile(r"\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b", re.I)
+_REL_WEEKDAY_PATTERN = re.compile(r"\b((?:next|following)[-\s]+(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday))\b", re.I)
+_MONTH_MAP = {
+    "january": "january", "jan": "january",
+    "february": "february", "feb": "february",
+    "march": "march", "mar": "march",
+    "april": "april", "apr": "april",
+    "may": "may",
+    "june": "june", "jun": "june",
+    "july": "july", "jul": "july",
+    "august": "august", "aug": "august",
+    "september": "september", "sep": "september", "sept": "september",
+    "october": "october", "oct": "october",
+    "november": "november", "nov": "november",
+    "december": "december", "dec": "december",
+}
+_FULL_MONTHS = "January|February|March|April|May|June|July|August|September|October|November|December"
+_UNAMBIGUOUS_MONTHS = "January|February|April|June|July|August|September|October|November|December"
+_ABBR_MONTHS = "Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept|Sep|Oct|Nov|Dec"
+_MONTH_ANY = rf"(?:(?i:{_FULL_MONTHS})|(?:{_ABBR_MONTHS}))"
+_DATE_PREPOSITIONS = r"(?:in|by|before|after|on|during|until|till|through|since|for|from|around|to|early|mid|late|this|next|last|end\s+of|start\s+of)"
+_STRICT_TIME_PREPOSITIONS = r"(?:in|by|before|after|on|during|until|till|through|since)"
+
+_MONTH_DAY_PATTERN = re.compile(rf"\b({_MONTH_ANY})\.?[-\s]+(\d{{1,2}})(?:st|nd|rd|th)?\b")
+_DAY_MONTH_PATTERN = re.compile(rf"\b(\d{{1,2}})(?:st|nd|rd|th)?[-\s]+(?:of\s+)?({_MONTH_ANY})\.?\b")
+_MONTH_YEAR_PATTERN = re.compile(rf"\b({_MONTH_ANY})\.?,?\s+((?:19|20)\d{{2}})\b")
+_ISO_DATE_PATTERN = re.compile(r"\b((?:19|20)\d{2}-\d{2}-\d{2})\b")
+_UNAMBIGUOUS_MONTH_PATTERN = re.compile(rf"\b({_UNAMBIGUOUS_MONTHS})\b", re.I)
+_MARCH_PATTERN = re.compile(rf"\bMarch\b|\b(?i:{_DATE_PREPOSITIONS})(?:\s+|-)march\b")
+_MAY_PATTERN = re.compile(rf"\b(?i:{_DATE_PREPOSITIONS}|a|the)(?:\s+|-)May\b|\b(?i:{_STRICT_TIME_PREPOSITIONS})(?:\s+|-)may(?=$|[.,;:!?)\]])")
+_ABBR_PREPOSITION_PATTERN = re.compile(rf"\b(?i:{_DATE_PREPOSITIONS})(?:\s+|-)({_ABBR_MONTHS})\.?(?!\w)")
+_RELATIVE_SCHEDULE_PATTERN = re.compile(
+    r"\b(?:(?:this|next|following)[-\s]+(?:sprint|week|month|quarter|year|cycle|iteration|release)"
+    r"|(?:upcoming|future|subsequent)[-\s]+(?:sprint|week|month|quarter|year|cycle|iteration))\b",
+    re.I,
 )
 
 
+def _scale_number(match: re.Match, factor: int) -> str:
+    base = Decimal(match.group(1)) if match.group(1) is not None else Decimal(1)
+    remainder = Decimal(match.group(2)) if match.lastindex and match.lastindex >= 2 and match.group(2) is not None else Decimal(0)
+    total = base * factor + remainder
+    if total == total.to_integral_value():
+        return str(int(total))
+    return format(total.normalize(), "f")
+
+
 def normalize_number_words(value: str) -> str:
-    return NUMBER_WORD_PATTERN.sub(lambda match: str(NUMBER_WORDS[match.group(0).casefold()]), normalize(value))
+    """Convert English number words, compound tens, multipliers, and percent phrases into digits."""
+    text = normalize(value)
+    text = re.sub(r"(?<=\d),(?=\d{3}\b)", "", text)
+    text = _COMPOUND_NUMBER_PATTERN.sub(
+        lambda match: str(_TENS[match.group(1).casefold()] + _UNITS[match.group(2).casefold()]),
+        text,
+    )
+    text = NUMBER_WORD_PATTERN.sub(lambda match: str(NUMBER_WORDS[match.group(0).casefold()]), text)
+    for pattern, factor in _MULTIPLIERS:
+        text = pattern.sub(lambda match, f=factor: _scale_number(match, f), text)
+    return re.sub(r"(\b\d+(?:[.,]\d+)?)\s+(?:per\s?cent\b|%)", r"\1%", text)
+
+
+def _extract_dates(text_punct: str) -> set[tuple[str, ...]]:
+    """Extract canonical date tokens while avoiding modal 'may' false positives."""
+    dates: set[tuple[str, ...]] = set()
+    for match in _WEEKDAY_PATTERN.finditer(text_punct):
+        dates.add(("weekday", match.group(1).casefold()))
+    for match in _REL_WEEKDAY_PATTERN.finditer(text_punct):
+        dates.add(("rel_weekday", " ".join(match.group(1).replace("-", " ").casefold().split())))
+    for pattern, month_group, day_group in ((_MONTH_DAY_PATTERN, 1, 2), (_DAY_MONTH_PATTERN, 2, 1)):
+        for match in pattern.finditer(text_punct):
+            day = int(match.group(day_group))
+            if 1 <= day <= 31:
+                month = _MONTH_MAP[match.group(month_group).casefold()]
+                dates.add(("month", month))
+                dates.add(("month_day", month, str(day)))
+    for match in _MONTH_YEAR_PATTERN.finditer(text_punct):
+        month = _MONTH_MAP[match.group(1).casefold()]
+        dates.add(("month", month))
+        dates.add(("month_year", month, match.group(2)))
+    for match in _ISO_DATE_PATTERN.finditer(text_punct):
+        dates.add(("iso", match.group(1)))
+    for match in _UNAMBIGUOUS_MONTH_PATTERN.finditer(text_punct):
+        dates.add(("month", _MONTH_MAP[match.group(1).casefold()]))
+    if _MARCH_PATTERN.search(text_punct):
+        dates.add(("month", "march"))
+    if _MAY_PATTERN.search(text_punct):
+        dates.add(("month", "may"))
+    for match in _ABBR_PREPOSITION_PATTERN.finditer(text_punct):
+        dates.add(("month", _MONTH_MAP[match.group(1).casefold()]))
+    return dates
 
 
 def feedback_claim_texts(feedback: Feedback) -> list[str]:
@@ -103,40 +220,51 @@ def validate_feedback(value: dict, history: list[dict], context: Context, previo
         feedback = Feedback.model_validate(value)
         utterances = [normalize(turn["content"]) for turn in history if turn["role"] == "user"]
         for quote in [feedback.strength.quote, *(item.quote for item in feedback.improvements)]:
-            if not any(normalize(quote) in utterance for utterance in utterances):
+            normalized_quote = normalize(quote)
+            if not any(ch.isalnum() for ch in normalized_quote) or not any(normalized_quote in utterance for utterance in utterances):
                 raise ValueError("Evidence quote is absent from the learner's actual words.")
-        if previous_history is None and feedback.comparison.strip():
+        if not previous_history and feedback.comparison.strip():
             raise ValueError("Comparison must be empty on the first attempt.")
-        facts_text = normalize(context.known_facts)
+        if feedback.comparison != feedback.comparison.strip():
+            feedback = feedback.model_copy(update={"comparison": feedback.comparison.strip()})
+
+        facts_punct = normalize_punctuation(context.known_facts)
+        facts_text = facts_punct.casefold()
         facts = normalize_number_words(context.known_facts)
         allowed_numbers = set(re.findall(r"\b\d+(?:[.,]\d+)?%?", facts))
         rewrite_numbers = re.findall(r"\b\d+(?:[.,]\d+)?%?", normalize_number_words(feedback.improved_message))
         if any(number not in allowed_numbers for number in rewrite_numbers):
             raise ValueError("The rewrite introduces a new numeric claim.")
+
         claim_texts = feedback_claim_texts(feedback)
-        dates = []
-        for text in claim_texts:
-            dates.extend(re.findall(r"\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b", text, re.I))
-            dates.extend(re.findall(r"\b(?:in|by|before|after|on)\s+(January|February|March|April|May|June|July|August|September|October|November|December)\b", text, re.I))
-        if any(normalize(date) not in facts_text for date in dates):
+        claim_texts_punct = [normalize_punctuation(text) for text in claim_texts]
+        claim_texts_norm = [text.casefold() for text in claim_texts_punct]
+        claim_texts_num = [normalize_number_words(text) for text in claim_texts_punct]
+
+        known_dates = _extract_dates(facts_punct)
+        if any(date not in known_dates for text in claim_texts_punct for date in _extract_dates(text)):
             raise ValueError("The feedback introduces a new date.")
+
         relative_schedule = [
             schedule
-            for text in claim_texts
-            for schedule in re.findall(r"\b(?:this|next|following)\s+(?:sprint|week|month|quarter|year|cycle|iteration|release)\b", text, re.I)
+            for text in claim_texts_punct
+            for schedule in _RELATIVE_SCHEDULE_PATTERN.findall(text)
         ]
+        facts_schedules = facts_text.replace("-", " ")
 
         def schedule_is_grounded(schedule: str) -> bool:
-            normalized = normalize(schedule)
-            return normalized in facts_text or (normalized == "this release" and re.search(r"\brelease\b", facts_text) is not None)
+            normalized = " ".join(schedule.replace("-", " ").casefold().split())
+            return re.search(rf"\b{re.escape(normalized)}\b", facts_schedules) is not None or (
+                normalized == "this release" and re.search(r"\brelease\b", facts_text) is not None
+            )
 
         if any(not schedule_is_grounded(schedule) for schedule in relative_schedule):
             unsupported = sorted({schedule.lower() for schedule in relative_schedule if not schedule_is_grounded(schedule)})
             raise ValueError("The rewrite introduces an unsupported schedule: " + ", ".join(unsupported) + ". Remove that schedule; retain only the work duration supplied in knownFacts.")
-        if any(pattern.search(text) for text in claim_texts for pattern in DELIVERY_TIMING_PATTERNS):
+        if any(pattern.search(text) for text in claim_texts_num for pattern in DELIVERY_TIMING_PATTERNS):
             raise ValueError("The feedback turns a work duration into an unsupported delivery promise. Retain the duration without assigning a delivery date or start window.")
         impact_is_unmeasured = re.search(r"\b(?:customer\s+)?impact\b.{0,60}\bnot\s+(?:been\s+)?measured\b", facts_text) or re.search(r"\bno\s+customer\s+impact\b.{0,40}\bmeasured\b", facts_text)
-        if impact_is_unmeasured and any(pattern.search(text) for text in claim_texts for pattern in ZERO_IMPACT_PATTERNS):
+        if impact_is_unmeasured and any(pattern.search(text) for text in claim_texts_norm for pattern in ZERO_IMPACT_PATTERNS):
             raise ValueError("The feedback treats unmeasured customer impact as zero impact. Preserve the uncertainty instead.")
         return feedback
     except (ValueError, TypeError, KeyError, AttributeError) as error:

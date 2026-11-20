@@ -338,3 +338,166 @@ async def test_api_returns_json_error_envelopes_for_http_and_unexpected_errors()
         assert boom.status_code == 500
         assert boom.json()["error"]["code"] == "INTERNAL_ERROR"
         assert "sensitive internal detail" not in boom.text
+
+
+def test_validate_feedback_normalizes_curly_quotes_in_evidence_and_zero_impact(context):
+    history = [{"role": "user", "content": 'We said "Search is ready", though we didn\'t test PDF export yet.'}]
+    val = feedback_value(history)
+    val["strength"]["quote"] = "we didn\u2019t test PDF export"
+    val["improvements"][0]["quote"] = "\u201cSearch is ready\u201d"
+    assert validate_feedback(val, history, context)
+
+    curly_history = [{"role": "user", "content": "We haven\u2019t measured impact yet."}]
+    val2 = feedback_value(curly_history)
+    val2["strength"]["quote"] = "haven't measured impact"
+    assert validate_feedback(val2, curly_history, context)
+
+    for unmeasured_claim in (
+        "Search is ready for Friday. There\u2019s no customer impact.",
+        "Search is ready for Friday. There is no\ncustomer impact to consider.",
+    ):
+        bad = feedback_value(history)
+        bad["improvedMessage"] = unmeasured_claim
+        with pytest.raises(AppError) as error:
+            validate_feedback(bad, history, context)
+        assert "unmeasured customer impact" in error.value.validation_hint
+
+
+@pytest.mark.parametrize(
+    "ungrounded_date_claim",
+    [
+        "Search is ready for Friday. PDF export can ship during June.",
+        "Search is ready for Friday. Wait until July for PDF export.",
+        "Search is ready for Friday. Plan PDF export for May.",
+        "Search is ready for Friday. We can deliver PDF export May 15.",
+        "Search is ready for Friday. Expect PDF export June 15.",
+        "Search is ready for Friday. Expect PDF export by 15 June.",
+        "Search is ready for Friday. Targeting a June release.",
+        "Search is ready for Friday. PDF export can ship next Friday.",
+        "Search is ready for Friday. Target date 2026-06-15.",
+    ],
+)
+def test_validate_feedback_rejects_date_and_month_regex_gaps(context, ungrounded_date_claim):
+    history = [{"role": "user", "content": ANSWER}]
+    val = feedback_value(history)
+    val["summary"] = ungrounded_date_claim
+    with pytest.raises(AppError) as error:
+        validate_feedback(val, history, context)
+    assert error.value.code == "INVALID_PROVIDER_OUTPUT"
+    assert "new date" in error.value.validation_hint
+
+
+def test_validate_feedback_date_modal_may_and_day_boundary_cases(context):
+    history = [{"role": "user", "content": ANSWER}]
+    for valid_modal in (
+        "Search is ready for Friday. The timeline we agree on may shift after review.",
+        "Search is ready for Friday. The release it goes in may change after approval.",
+        "Search is ready for Friday. You may choose to add export after the release.",
+    ):
+        val = feedback_value(history)
+        val["improvedMessage"] = valid_modal
+        assert validate_feedback(val, history, context)
+
+    may20_ctx = context.model_copy(update={"known_facts": "Search is ready for May 20. PDF export needs two additional working days."})
+    collision = feedback_value(history)
+    collision["improvedMessage"] = "Search is ready for May 2."
+    with pytest.raises(AppError):
+        validate_feedback(collision, history, may20_ctx)
+
+    june15_ctx = context.model_copy(update={"known_facts": "Search is ready for June 15. PDF export needs two additional working days."})
+    ordinal_ok = feedback_value(history)
+    ordinal_ok["improvedMessage"] = "Search is ready for June 15th."
+    assert validate_feedback(ordinal_ok, history, june15_ctx)
+
+    modal_facts_ctx = context.model_copy(update={"known_facts": "Search is ready for Friday, and you may recommend next steps."})
+    sneaky_may = feedback_value(history)
+    sneaky_may["summary"] = "Plan PDF export in May."
+    with pytest.raises(AppError):
+        validate_feedback(sneaky_may, history, modal_facts_ctx)
+
+    lowercase_until_may = feedback_value(history)
+    lowercase_until_may["summary"] = "Wait until may."
+    with pytest.raises(AppError):
+        validate_feedback(lowercase_until_may, history, context)
+
+
+def test_validate_feedback_handles_hyphenated_numbers_multipliers_and_percent(context):
+    history = [{"role": "user", "content": ANSWER}]
+    split_ctx = context.model_copy(update={"known_facts": "Search is ready for Friday. In 20 tests, 5 failed."})
+    fabricated_25 = feedback_value(history)
+    fabricated_25["improvedMessage"] = "Search is ready for Friday. Twenty-five tests failed."
+    with pytest.raises(AppError):
+        validate_feedback(fabricated_25, history, split_ctx)
+
+    ctx_25 = context.model_copy(update={"known_facts": "Search is ready for Friday. In 25 reviewed tests, issues remain."})
+    for grounded_25 in (
+        "Search is ready for Friday. In twenty-five reviewed tests, issues remain.",
+        "Search is ready for Friday. In twenty five reviewed tests, issues remain.",
+    ):
+        ok_25 = feedback_value(history)
+        ok_25["improvedMessage"] = grounded_25
+        assert validate_feedback(ok_25, history, ctx_25)
+
+    for fabricated_mult in (
+        "Search is ready for Friday. This affects two hundred users.",
+        "Search is ready for Friday. This saves a hundred hours.",
+    ):
+        bad_mult = feedback_value(history)
+        bad_mult["improvedMessage"] = fabricated_mult
+        with pytest.raises(AppError):
+            validate_feedback(bad_mult, history, context)
+
+    ctx_100 = context.model_copy(update={"known_facts": "Search is ready for Friday. In 100 reviewed examples, 90% passed and 1,000 logs were checked."})
+    ok_100 = feedback_value(history)
+    ok_100["improvedMessage"] = "In one hundred reviewed examples, ninety percent passed and 1000 logs were checked."
+    assert validate_feedback(ok_100, history, ctx_100)
+
+
+def test_validate_feedback_delivery_timing_and_edge_cases(context):
+    history = [{"role": "user", "content": ANSWER}]
+    ctx_25 = context.model_copy(update={"known_facts": "Search is ready for Friday. PDF export needs 25 working days."})
+    bad_timing_25 = feedback_value(history)
+    bad_timing_25["improvedMessage"] = "Search is ready for Friday. PDF export will be ready in twenty-five working days."
+    with pytest.raises(AppError) as error:
+        validate_feedback(bad_timing_25, history, ctx_25)
+    assert "delivery promise" in error.value.validation_hint
+
+    ctx_2_3 = context.model_copy(update={"known_facts": "Search is ready for Friday. PDF export needs 2 to 3 working days."})
+    for bad_phrase in (
+        "Search is ready for Friday. PDF export will finish in 2 working days.",
+        "Search is ready for Friday. PDF export will be ready in 2 more working days.",
+        "Search is ready for Friday. PDF export will be ready in 2 to 3 working days.",
+    ):
+        bad = feedback_value(history)
+        bad["improvedMessage"] = bad_phrase
+        with pytest.raises(AppError) as error:
+            validate_feedback(bad, history, ctx_2_3)
+        assert "delivery promise" in error.value.validation_hint
+
+    punct_quote = feedback_value(history)
+    punct_quote["strength"]["quote"] = "."
+    with pytest.raises(AppError):
+        validate_feedback(punct_quote, history, context)
+
+    empty_prev_comp = feedback_value(history)
+    empty_prev_comp["comparison"] = "Improved clarity."
+    with pytest.raises(AppError):
+        validate_feedback(empty_prev_comp, history, context, previous_history=[])
+
+    ws_comp = feedback_value(history)
+    ws_comp["comparison"] = "   "
+    validated = validate_feedback(ws_comp, history, context)
+    assert validated.comparison == ""
+
+    for bad_sched in (
+        "Plan PDF export for an upcoming sprint.",
+        "Plan PDF export for the next-sprint.",
+    ):
+        bad_s = feedback_value(history)
+        bad_s["summary"] = bad_sched
+        with pytest.raises(AppError):
+            validate_feedback(bad_s, history, context)
+
+    future_rel = feedback_value(history)
+    future_rel["improvedMessage"] = "Search is ready for Friday. PDF export needs two additional working days and can be considered for a future release."
+    assert validate_feedback(future_rel, history, context)
