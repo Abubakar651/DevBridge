@@ -1,0 +1,142 @@
+{
+  "checkedAt": "2026-11-19T06:04:19.197705+05:00",
+  "method": "Live HTTP endpoints on a separate local server; no browser automation",
+  "checks": [
+    {
+      "check": "Page and browser resources",
+      "status": "passed",
+      "resources": 6,
+      "seconds": 0.01
+    },
+    {
+      "check": "Synthetic voice input through website endpoint",
+      "status": "passed",
+      "audioBytes": 219278,
+      "transcript": "Search is ready for Friday, PDF export needs two more working days, I recommend releasing search first.",
+      "seconds": 0.41
+    },
+    {
+      "check": "Orpheus output through website endpoint",
+      "status": "passed",
+      "audioBytes": 107590,
+      "seconds": 0.54
+    },
+    {
+      "check": "Live stakeholder opening",
+      "status": "passed",
+      "reply": "Given the PDF export requires two more days and hasn't been approved, how would you adjust the Friday release timeline to accommodate this scope change?",
+      "seconds": 1.25
+    },
+    {
+      "check": "Speak the generated stakeholder opening",
+      "status": "passed",
+      "segments": 1,
+      "audioBytes": 433990,
+      "durationSeconds": 9.04,
+      "file": "output/audio/phase1-live-check/stakeholder-opening.wav",
+      "seconds": 1.57
+    },
+    {
+      "check": "Submit transcript without duplicate answers",
+      "status": "passed",
+      "acceptedAnswers": 1,
+      "seconds": 0.0
+    },
+    {
+      "check": "Live stakeholder follow-up",
+      "status": "passed",
+      "reply": "How will stakeholders react to a staggered release, with search on Friday and PDF export two days later?",
+      "seconds": 1.13
+    },
+    {
+      "check": "Live coaching with grounded evidence",
+      "status": "passed",
+      "feedback": {
+        "strength": {
+          "title": "Clear Statement of Readiness and Recommendation",
+          "quote": "Search is ready for Friday, PDF export needs two more working days, I recommend releasing search first.",
+          "reason": "You clearly state what is ready, what is pending, and give a recommendation."
+        },
+        "improvements": [
+          {
+            "dimension": "Audience clarity",
+            "quote": "Search is ready for Friday, PDF export needs two more working days, I recommend releasing search first.",
+            "reason": "The message mixes readiness, pending work, and recommendation in one sentence, which may be hard to parse quickly. Separating the points would improve clarity.",
+            "suggestion": "State the readiness, the pending work, and the recommendation in separate sentences or bullet points."
+          },
+          {
+            "dimension": "Structure and relevance",
+            "quote": "Search is ready for Friday, PDF export needs two more working days, I recommend releasing search first.",
+            "reason": "The message does not mention that the scope change has not been approved, which is a key piece of information for decision makers.",
+            "suggestion": "Add a brief note that the PDF export scope change is pending approval before it can be added to the release."
+          }
+        ],
+        "improvedMessage": "Search is ready for the Friday release. PDF export will need two more working days and is not yet approved. We can keep the Friday release for search and, once the scope change is approved, plan to add PDF export after those two days.",
+        "summary": "You did well stating what\u2019s ready and your recommendation. Next, separate the points for clarity and include the approval status of the new scope.",
+        "retryFocus": "Practice separating readiness, pending work, and recommendations into distinct sentences.",
+        "missingFacts": [
+          "Who has the authority to approve the scope change?",
+          "What is the impact on customers if PDF export is delayed?",
+          "What are the benefits of adding PDF export?"
+        ],
+        "comparison": ""
+      },
+      "knownFacts": "Search is ready for the Friday release. PDF export was newly proposed and needs two additional working days. The scope change has not been approved. No customer impact or time savings have been measured.",
+      "seconds": 4.74
+    },
+    {
+      "check": "Speak the generated coaching summary",
+      "status": "passed",
+      "segments": 1,
+      "audioBytes": 422470,
+      "durationSeconds": 8.8,
+      "file": "output/audio/phase1-live-check/coaching-summary.wav",
+      "seconds": 1.51
+    },
+    {
+      "check": "Speak the improved explanation",
+      "status": "passed",
+      "segments": 2,
+      "audioBytes": 725900,
+      "durationSeconds": 15.12,
+      "file": "output/audio/phase1-live-check/improved-explanation.wav",
+      "seconds": 2.64
+    },
+    {
+      "check": "Retry with preserved facts and separate history",
+      "status": "passed",
+      "sameFacts": true,
+      "attempts": 2,
+      "seconds": 0.0
+    },
+    {
+      "check": "Reset temporary practice",
+      "status": "passed",
+      "httpStatus": 204,
+      "seconds": 0.0
+    }
+  ],
+  "configured": {
+    "gemini": true,
+    "groq": true,
+    "coaching": true,
+    "speech": true
+  },
+  "serverLog": [
+    "Using shared Python: /home/bakar/Documents/NAVTTC/.venv/bin/python",
+    "Voice Coach: http://127.0.0.1:57145",
+    "INFO:     Started server process [393747]",
+    "INFO:     Waiting for application startup.",
+    "INFO:     Application startup complete.",
+    "INFO:     Uvicorn running on http://127.0.0.1:57145 (Press CTRL+C to quit)",
+    "Gemini failed (PROVIDER_RATE_LIMIT); using Groq openai/gpt-oss-20b for roleplay.",
+    "Gemini failed (PROVIDER_RATE_LIMIT); using Groq openai/gpt-oss-20b for roleplay.",
+    "Gemini failed (PROVIDER_RATE_LIMIT); using Groq openai/gpt-oss-20b for coach.",
+    "Groq output failed validation for coach; regenerating once.",
+    "INFO:     Shutting down",
+    "INFO:     Waiting for application shutdown.",
+    "INFO:     Application shutdown complete.",
+    "INFO:     Finished server process [393747]"
+  ],
+  "status": "passed"
+}

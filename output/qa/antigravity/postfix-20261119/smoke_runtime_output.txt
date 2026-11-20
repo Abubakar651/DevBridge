@@ -1,0 +1,8 @@
+test_direct_app_from_server_directory (smoke_runtime.RuntimeLaunchTests.test_direct_app_from_server_directory) ... ok
+test_launcher_from_another_directory_selects_shared_environment (smoke_runtime.RuntimeLaunchTests.test_launcher_from_another_directory_selects_shared_environment) ... ok
+test_package_launch_from_project_directory (smoke_runtime.RuntimeLaunchTests.test_package_launch_from_project_directory) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 1.780s
+
+OK

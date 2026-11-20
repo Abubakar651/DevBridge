@@ -1,0 +1,383 @@
+{
+  "checkedAt": "2026-11-19T07:31:34.192654+05:00",
+  "purpose": "Minimal direct text-generation probes, then application API compatibility checks. No Groq fallback. No application settings changed.",
+  "keyLabels": [
+    "GEMINI_API_KEY",
+    "GEMINI_API_KEY2",
+    "GEMINI_API_KEY3",
+    "GEMINI_API_KEY4"
+  ],
+  "distinctKeys": 4,
+  "duplicateKeyAliases": {},
+  "models": [
+    "gemini-3.6-flash",
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash-lite",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-3-flash-preview",
+    "gemini-3.1-pro-preview",
+    "gemini-2.5-pro"
+  ],
+  "timeoutSeconds": 30,
+  "maxConcurrentRequests": 2,
+  "generationResults": [
+    {
+      "key": "GEMINI_API_KEY",
+      "model": "gemini-3.6-flash",
+      "endpoint": "generateContent",
+      "status": "failed",
+      "code": "TIMEOUT",
+      "message": "No response within 30 seconds.",
+      "seconds": 30.03
+    },
+    {
+      "key": "GEMINI_API_KEY2",
+      "model": "gemini-3.6-flash",
+      "endpoint": "generateContent",
+      "status": "failed",
+      "code": "TIMEOUT",
+      "message": "No response within 30 seconds.",
+      "seconds": 30.01
+    },
+    {
+      "key": "GEMINI_API_KEY3",
+      "model": "gemini-3.6-flash",
+      "endpoint": "generateContent",
+      "status": "failed",
+      "code": "TIMEOUT",
+      "message": "No response within 30 seconds.",
+      "seconds": 30.03
+    },
+    {
+      "key": "GEMINI_API_KEY4",
+      "model": "gemini-3.6-flash",
+      "endpoint": "generateContent",
+      "status": "failed",
+      "code": "TIMEOUT",
+      "message": "No response within 30 seconds.",
+      "seconds": 30.03
+    },
+    {
+      "key": "GEMINI_API_KEY",
+      "model": "gemini-3.1-flash-lite",
+      "endpoint": "generateContent",
+      "httpStatus": 200,
+      "status": "passed",
+      "reply": "Ready.",
+      "seconds": 2.1
+    },
+    {
+      "key": "GEMINI_API_KEY2",
+      "model": "gemini-3.1-flash-lite",
+      "endpoint": "generateContent",
+      "httpStatus": 200,
+      "status": "passed",
+      "reply": "Ready.",
+      "seconds": 2.7
+    },
+    {
+      "key": "GEMINI_API_KEY3",
+      "model": "gemini-3.1-flash-lite",
+      "endpoint": "generateContent",
+      "httpStatus": 200,
+      "status": "passed",
+      "reply": "Ready.",
+      "seconds": 0.89
+    },
+    {
+      "key": "GEMINI_API_KEY4",
+      "model": "gemini-3.1-flash-lite",
+      "endpoint": "generateContent",
+      "httpStatus": 200,
+      "status": "passed",
+      "reply": "Ready.",
+      "seconds": 1.01
+    },
+    {
+      "key": "GEMINI_API_KEY",
+      "model": "gemini-3.5-flash-lite",
+      "endpoint": "generateContent",
+      "httpStatus": 200,
+      "status": "passed",
+      "reply": "Ready.",
+      "seconds": 4.99
+    },
+    {
+      "key": "GEMINI_API_KEY2",
+      "model": "gemini-3.5-flash-lite",
+      "endpoint": "generateContent",
+      "httpStatus": 200,
+      "status": "passed",
+      "reply": "Ready.",
+      "seconds": 5.48
+    },
+    {
+      "key": "GEMINI_API_KEY4",
+      "model": "gemini-3.5-flash-lite",
+      "endpoint": "generateContent",
+      "httpStatus": 200,
+      "status": "passed",
+      "reply": "Ready.",
+      "seconds": 2.78
+    },
+    {
+      "key": "GEMINI_API_KEY3",
+      "model": "gemini-3.5-flash-lite",
+      "endpoint": "generateContent",
+      "httpStatus": 200,
+      "status": "passed",
+      "reply": "Ready.",
+      "seconds": 4.32
+    },
+    {
+      "key": "GEMINI_API_KEY",
+      "model": "gemini-2.5-flash",
+      "endpoint": "generateContent",
+      "httpStatus": 404,
+      "status": "failed",
+      "code": "NOT_FOUND",
+      "message": "This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash for the latest features and improvements. We recommend you to use the Interactions API (https://aistudio.google.com/docs/get-started).",
+      "invalidKey": false,
+      "seconds": 0.33
+    },
+    {
+      "key": "GEMINI_API_KEY2",
+      "model": "gemini-2.5-flash",
+      "endpoint": "generateContent",
+      "httpStatus": 404,
+      "status": "failed",
+      "code": "NOT_FOUND",
+      "message": "This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash for the latest features and improvements. We recommend you to use the Interactions API (https://aistudio.google.com/docs/get-started).",
+      "invalidKey": false,
+      "seconds": 0.27
+    },
+    {
+      "key": "GEMINI_API_KEY4",
+      "model": "gemini-2.5-flash",
+      "endpoint": "generateContent",
+      "httpStatus": 404,
+      "status": "failed",
+      "code": "NOT_FOUND",
+      "message": "This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash for the latest features and improvements. We recommend you to use the Interactions API (https://aistudio.google.com/docs/get-started).",
+      "invalidKey": false,
+      "seconds": 0.43
+    },
+    {
+      "key": "GEMINI_API_KEY",
+      "model": "gemini-2.5-flash-lite",
+      "endpoint": "generateContent",
+      "httpStatus": 404,
+      "status": "failed",
+      "code": "NOT_FOUND",
+      "message": "This model models/gemini-2.5-flash-lite is no longer available to new users. Please update your code to use models/gemini-3.5-flash-lite for the latest features and improvements. We recommend you to use the Interactions API (https://aistudio.google.com/docs/get-started).",
+      "invalidKey": false,
+      "seconds": 0.31
+    },
+    {
+      "key": "GEMINI_API_KEY3",
+      "model": "gemini-2.5-flash",
+      "endpoint": "generateContent",
+      "httpStatus": 404,
+      "status": "failed",
+      "code": "NOT_FOUND",
+      "message": "This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash for the latest features and improvements. We recommend you to use the Interactions API (https://aistudio.google.com/docs/get-started).",
+      "invalidKey": false,
+      "seconds": 0.59
+    },
+    {
+      "key": "GEMINI_API_KEY2",
+      "model": "gemini-2.5-flash-lite",
+      "endpoint": "generateContent",
+      "httpStatus": 404,
+      "status": "failed",
+      "code": "NOT_FOUND",
+      "message": "This model models/gemini-2.5-flash-lite is no longer available to new users. Please update your code to use models/gemini-3.5-flash-lite for the latest features and improvements. We recommend you to use the Interactions API (https://aistudio.google.com/docs/get-started).",
+      "invalidKey": false,
+      "seconds": 0.28
+    },
+    {
+      "key": "GEMINI_API_KEY4",
+      "model": "gemini-2.5-flash-lite",
+      "endpoint": "generateContent",
+      "httpStatus": 404,
+      "status": "failed",
+      "code": "NOT_FOUND",
+      "message": "This model models/gemini-2.5-flash-lite is no longer available to new users. Please update your code to use models/gemini-3.5-flash-lite for the latest features and improvements. We recommend you to use the Interactions API (https://aistudio.google.com/docs/get-started).",
+      "invalidKey": false,
+      "seconds": 0.31
+    },
+    {
+      "key": "GEMINI_API_KEY3",
+      "model": "gemini-2.5-flash-lite",
+      "endpoint": "generateContent",
+      "httpStatus": 404,
+      "status": "failed",
+      "code": "NOT_FOUND",
+      "message": "This model models/gemini-2.5-flash-lite is no longer available to new users. Please update your code to use models/gemini-3.5-flash-lite for the latest features and improvements. We recommend you to use the Interactions API (https://aistudio.google.com/docs/get-started).",
+      "invalidKey": false,
+      "seconds": 0.29
+    },
+    {
+      "key": "GEMINI_API_KEY",
+      "model": "gemini-3-flash-preview",
+      "endpoint": "generateContent",
+      "httpStatus": 200,
+      "status": "passed",
+      "reply": "Ready.",
+      "seconds": 1.18
+    },
+    {
+      "key": "GEMINI_API_KEY2",
+      "model": "gemini-3-flash-preview",
+      "endpoint": "generateContent",
+      "httpStatus": 200,
+      "status": "passed",
+      "reply": "Ready.",
+      "seconds": 1.11
+    },
+    {
+      "key": "GEMINI_API_KEY4",
+      "model": "gemini-3-flash-preview",
+      "endpoint": "generateContent",
+      "httpStatus": 200,
+      "status": "passed",
+      "reply": "Ready.",
+      "seconds": 1.26
+    },
+    {
+      "key": "GEMINI_API_KEY",
+      "model": "gemini-3.1-pro-preview",
+      "endpoint": "generateContent",
+      "httpStatus": 429,
+      "status": "failed",
+      "code": "RESOURCE_EXHAUSTED",
+      "message": "You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://aistudio.google.com/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 0, model: gemini-3.1-pro, description: Generate content input tokens per day limit exceeded on Free Tier. See https://aistudio.google.com/docs/rate-",
+      "invalidKey": false,
+      "seconds": 0.31
+    },
+    {
+      "key": "GEMINI_API_KEY3",
+      "model": "gemini-3-flash-preview",
+      "endpoint": "generateContent",
+      "httpStatus": 200,
+      "status": "passed",
+      "reply": "Ready.",
+      "seconds": 1.35
+    },
+    {
+      "key": "GEMINI_API_KEY4",
+      "model": "gemini-3.1-pro-preview",
+      "endpoint": "generateContent",
+      "httpStatus": 429,
+      "status": "failed",
+      "code": "RESOURCE_EXHAUSTED",
+      "message": "You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://aistudio.google.com/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 0, model: gemini-3.1-pro, description: Generate content input tokens per day limit exceeded on Free Tier. See https://aistudio.google.com/docs/rate-",
+      "invalidKey": false,
+      "seconds": 0.3
+    },
+    {
+      "key": "GEMINI_API_KEY2",
+      "model": "gemini-3.1-pro-preview",
+      "endpoint": "generateContent",
+      "httpStatus": 429,
+      "status": "failed",
+      "code": "RESOURCE_EXHAUSTED",
+      "message": "You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://aistudio.google.com/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 0, model: gemini-3.1-pro, description: Generate content input tokens per day limit exceeded on Free Tier. See https://aistudio.google.com/docs/rate-",
+      "invalidKey": false,
+      "seconds": 0.54
+    },
+    {
+      "key": "GEMINI_API_KEY",
+      "model": "gemini-2.5-pro",
+      "endpoint": "generateContent",
+      "httpStatus": 404,
+      "status": "failed",
+      "code": "NOT_FOUND",
+      "message": "This model models/gemini-2.5-pro is no longer available to new users. Please update your code to use models/gemini-3.1-pro-preview for the latest features and improvements. We recommend you to use the Interactions API (https://aistudio.google.com/docs/get-started).",
+      "invalidKey": false,
+      "seconds": 0.26
+    },
+    {
+      "key": "GEMINI_API_KEY3",
+      "model": "gemini-3.1-pro-preview",
+      "endpoint": "generateContent",
+      "httpStatus": 429,
+      "status": "failed",
+      "code": "RESOURCE_EXHAUSTED",
+      "message": "You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://aistudio.google.com/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 0, model: gemini-3.1-pro, description: Generate content input tokens per minute limit exceeded on Free Tier. See https://aistudio.google.com/docs/ra",
+      "invalidKey": false,
+      "seconds": 0.36
+    },
+    {
+      "key": "GEMINI_API_KEY4",
+      "model": "gemini-2.5-pro",
+      "endpoint": "generateContent",
+      "httpStatus": 404,
+      "status": "failed",
+      "code": "NOT_FOUND",
+      "message": "This model models/gemini-2.5-pro is no longer available to new users. Please update your code to use models/gemini-3.1-pro-preview for the latest features and improvements. We recommend you to use the Interactions API (https://aistudio.google.com/docs/get-started).",
+      "invalidKey": false,
+      "seconds": 0.28
+    },
+    {
+      "key": "GEMINI_API_KEY3",
+      "model": "gemini-2.5-pro",
+      "endpoint": "generateContent",
+      "httpStatus": 404,
+      "status": "failed",
+      "code": "NOT_FOUND",
+      "message": "This model models/gemini-2.5-pro is no longer available to new users. Please update your code to use models/gemini-3.1-pro-preview for the latest features and improvements. We recommend you to use the Interactions API (https://aistudio.google.com/docs/get-started).",
+      "invalidKey": false,
+      "seconds": 0.3
+    },
+    {
+      "key": "GEMINI_API_KEY2",
+      "model": "gemini-2.5-pro",
+      "endpoint": "generateContent",
+      "httpStatus": 404,
+      "status": "failed",
+      "code": "NOT_FOUND",
+      "message": "This model models/gemini-2.5-pro is no longer available to new users. Please update your code to use models/gemini-3.1-pro-preview for the latest features and improvements. We recommend you to use the Interactions API (https://aistudio.google.com/docs/get-started).",
+      "invalidKey": false,
+      "seconds": 0.45
+    }
+  ],
+  "appIntegrationResults": [
+    {
+      "key": "GEMINI_API_KEY3",
+      "model": "gemini-3.1-flash-lite",
+      "endpoint": "application_interactions_adapter",
+      "status": "passed",
+      "reply": "Ready",
+      "seconds": 2.35
+    },
+    {
+      "key": "GEMINI_API_KEY2",
+      "model": "gemini-3-flash-preview",
+      "endpoint": "application_interactions_adapter",
+      "status": "passed",
+      "reply": "Ready",
+      "seconds": 1.0
+    },
+    {
+      "key": "GEMINI_API_KEY4",
+      "model": "gemini-3.5-flash-lite",
+      "endpoint": "application_interactions_adapter",
+      "status": "passed",
+      "reply": "Ready",
+      "seconds": 4.51
+    }
+  ],
+  "workingModels": [
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash-lite",
+    "gemini-3-flash-preview"
+  ],
+  "workingWithAppAPI": [
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash-lite",
+    "gemini-3-flash-preview"
+  ],
+  "finishedAt": "2026-11-19T07:32:56.241329+05:00"
+}

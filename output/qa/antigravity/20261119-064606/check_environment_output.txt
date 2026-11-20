@@ -1,0 +1,10 @@
+Interpreter: /home/bakar/Documents/NAVTTC/.venv/bin/python
+Virtual environment: /home/bakar/Documents/NAVTTC/.venv
+Expected shared environment: /home/bakar/Documents/NAVTTC/.venv
+fastapi: 0.164.0 (installed)
+uvicorn: 0.53.0 (installed)
+httpx: 0.28.1 (installed)
+pydantic: 2.14.1 (installed)
+requests: 2.34.2 (installed)
+pytest: 9.2.0 (installed)
+All requested packages are installed in the shared environment. No installation needed.

@@ -1,0 +1,15 @@
+# Live Provider Diagnostics (2026-11-19 ~06:46 Asia/Karachi)
+
+Commands executed using `/home/bakar/Documents/NAVTTC/.venv/bin/python`:
+1. `python -m server.check_providers --voice-only --diagnostic`
+2. `python -m server.check_providers --text-only --diagnostic`
+
+Observed output (credentials redacted on server):
+```json
+{"check": "Groq speech round trip", "status": "passed", "audioBytes": 107590, "transcription": "Voice coaches ready for practice.", "ttsModel": "canopylabs/orpheus-v1-english", "sttModel": "whisper-large-v3-turbo"}
+{"providerDiagnostic": {"status": 429, "code": "too_many_requests", "message": "Rate limit exceeded for model gemini-3.8-flash (limit: 20 requests per day on Free Tier). Please retry in 6h13m51s or upgrade your tier at https://ai.dev/rate-limit."}}
+{"providerDiagnostic": {"event": "reasoning_fallback", "task": "roleplay", "from": "gemini", "to": "groq", "code": "PROVIDER_RATE_LIMIT", "model": "openai/gpt-oss-20b"}}
+{"providerDiagnostic": {"status": 429, "code": "too_many_requests", "message": "Rate limit exceeded for model gemini-3.8-flash (limit: 20 requests per day on Free Tier). Please retry in 6h13m49s or upgrade your tier at https://ai.dev/rate-limit."}}
+{"providerDiagnostic": {"event": "reasoning_fallback", "task": "coach", "from": "gemini", "to": "groq", "code": "PROVIDER_RATE_LIMIT", "model": "openai/gpt-oss-20b"}}
+{"check": "Role-play and feedback", "status": "passed", "reasoning": [{"event": "reasoning_fallback", "task": "roleplay", "from": "gemini", "to": "groq", "code": "PROVIDER_RATE_LIMIT", "model": "openai/gpt-oss-20b"}, {"event": "reasoning_success", "task": "roleplay", "provider": "groq", "model": "openai/gpt-oss-20b"}, {"event": "reasoning_fallback", "task": "coach", "from": "gemini", "to": "groq", "code": "PROVIDER_RATE_LIMIT", "model": "openai/gpt-oss-20b"}, {"event": "reasoning_success", "task": "coach", "provider": "groq", "model": "openai/gpt-oss-20b"}], "evidenceChecked": true, "feedbackImprovements": 2, "opening": "Could you outline your recommendation for the release plan and how you would handle the PDF export scope?", "improvedMessage": "Search is ready for the Friday release. The PDF export feature will need two additional working days and is not yet approved. I recommend we release search first and then decide on the PDF export once approval is secured."}
+```

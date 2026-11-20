@@ -1,0 +1,26 @@
+{
+  "checkedAt": "2026-11-19T08:05:25+05:00",
+  "method": "Live provider check through the Python Providers adapter; credential values omitted",
+  "ttsModel": "canopylabs/orpheus-v1-english",
+  "sttModel": "whisper-large-v3-turbo",
+  "checks": [
+    {
+      "check": "Preferred separate voice credential",
+      "status": "fallback_triggered",
+      "code": "MODEL_TERMS_REQUIRED"
+    },
+    {
+      "check": "Primary Groq credential fallback",
+      "status": "passed",
+      "audioBytes": 115270,
+      "transcription": "DevBridge is ready for practice."
+    },
+    {
+      "check": "Immediate additional long synthesis",
+      "status": "external_limit",
+      "code": "PROVIDER_RATE_LIMIT",
+      "recovery": "Written coaching remains available; playback can be retried or spoken replies can be disabled."
+    }
+  ],
+  "credentialsExposed": false
+}

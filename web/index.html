@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f3f5f1">
+  <meta name="description" content="Practise explaining your work clearly, confidently and respectfully with DevBridge.">
+  <title>DevBridge · Practice room</title>
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m9 5 11 7-11 7z"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 3M4 15l2 3a7 7 0 0 0 12-1"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-volume" viewBox="0 0 24 24"><path d="m11 5-6 4H2v6h3l6 4zM15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4z"/></symbol>
+  </defs></svg>
+  <a class="skip-link" href="#practice">Skip to practice</a>
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="DevBridge home"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>dev<span>bridge</span><span class="brand-dot">.</span></a>
+    <nav aria-label="Main navigation"><span class="nav-active">Practice room</span><button class="nav-button" id="how-button">How it works</button></nav>
+    <button class="session-badge" id="setup-button"><span class="status-dot"></span>Local practice</button>
+  </header>
+
+  <main class="page">
+    <section class="intro" aria-labelledby="page-title">
+      <div><p class="eyebrow"><span></span> A LITTLE PRACTICE. A CLEARER MESSAGE.</p><h1 id="page-title">Make your work <em>make sense.</em></h1><p class="intro-copy">Practise the conversation before you have it. Explain your work<br class="desktop-break"> with clarity, confidence, and respect.</p></div>
+      <div class="intro-note"><div><strong>One conversation at a time</strong><span>Practise · reflect · try again</span></div></div>
+    </section>
+
+    <div id="configuration-notice" class="notice" role="status" hidden><span id="configuration-message"></span><button class="text-button" id="notice-setup">View setup</button></div>
+    <div id="test-notice" class="notice" role="status" hidden>Test preview · Responses are scripted for verification. This is not a live AI session.</div>
+    <div id="error-panel" class="error-panel" role="alert" tabindex="-1" hidden><div><strong>This step needs another try.</strong><p id="error-message"></p></div><button class="button button-small button-outline" id="recover-button">Try again</button></div>
+
+    <div class="workspace">
+      <aside class="context-card panel" aria-labelledby="context-heading">
+        <div class="panel-heading"><h2 id="context-heading">Set the scene</h2><span class="small-label">SCENARIO</span></div>
+        <div class="scenario-icon" aria-hidden="true"><svg class="icon"><use href="#i-arrow"/></svg></div>
+        <p class="eyebrow">YOUR PRACTICE SCENARIO</p><h3>The release update</h3><p class="muted scenario-description">The release is close. There’s one more feature on the table. How do you explain the trade-off?</p>
+        <div class="scenario-meta"><span>Project manager</span><span>3–5 min</span></div>
+        <form id="context-form">
+          <label for="discipline">Your role</label><select id="discipline" name="discipline"><option>Software developer</option><option>AI/ML engineer</option></select>
+          <label for="facts">What do we know? <span class="label-detail">Edit the scenario facts</span></label><textarea id="facts" name="facts" rows="6" minlength="20" maxlength="4000" required></textarea>
+          <label for="goal">What do you want to communicate?</label><textarea id="goal" name="goal" rows="3" minlength="10" maxlength="600" required></textarea>
+          <label for="familiarity">Your audience prefers</label><select id="familiarity" name="familiarity"><option value="Business-focused; prefers plain language">Plain language, business focused</option><option value="Some technical context; explain trade-offs">Some technical context</option></select>
+          <button class="button button-small button-outline context-reset" type="button" id="reset-scene-button">Reset default scene</button>
+        </form>
+        <p class="context-footnote" id="context-note">Your coach will use these facts. Keep them specific.</p>
+      </aside>
+
+      <section class="practice-card panel" id="practice" aria-labelledby="practice-heading" tabindex="-1">
+        <div class="panel-heading"><h2 id="practice-heading">The conversation</h2><span class="attempt-tag" id="attempt-label">FIRST ATTEMPT</span></div>
+        <div class="partner"><div class="avatar" id="partner-avatar" aria-hidden="true">PM</div><div><strong id="partner-name">Your project manager</strong><span id="partner-description">A simulated workplace conversation</span></div><span class="mode-badge" id="mode-badge">ROLE-PLAY</span></div>
+        <div class="conversation-area" id="conversation-area">
+          <div class="conversation-empty" id="empty-conversation"><div class="voice-orbit" aria-hidden="true"><div class="orbit-ring"></div><div class="orbit-core"><span></span><span></span><span></span><span></span><span></span></div><span class="orbit-dot"></span></div><h3>A safe space to find your words.</h3><p>Your project manager will ask for an update.<br>There’s room to pause, rethink, and try again.</p><div class="easy-start-steps" aria-label="Easy three-step opener"><span><strong>1. Ready now:</strong> Search is ready for Friday</span><span><strong>2. Trade-off:</strong> PDF export needs 2 days &amp; approval</span><span><strong>3. Recommend:</strong> Ship search first</span></div><div class="conversation-hint"><span class="tiny-check">✓</span> Your facts stay the same. Your explanation gets clearer.</div></div>
+          <ol class="messages" id="messages" aria-label="Practice transcript" aria-live="polite" aria-relevant="additions text" hidden></ol>
+        </div>
+        <div class="practice-controls">
+          <div class="state-row"><span class="status-dot" id="state-dot"></span><span id="state-label" role="status">Ready when you are</span><span class="turn-count" id="turn-count">0 / 3 answers</span></div>
+          <div class="voice-notice" id="voice-notice" role="status" hidden><span id="voice-notice-message"></span><div class="voice-notice-actions"><button class="button button-small button-outline" type="button" id="retry-voice-button">Retry audio</button><button class="button button-small button-outline" type="button" id="mute-voice-button">Turn voice off</button><button class="icon-button" type="button" id="dismiss-voice-button" aria-label="Dismiss voice notice">×</button></div></div>
+          <div class="starter-bar" id="starter-bar" aria-label="Quick conversation starters" hidden><span class="starter-label">Need an easy start? Tap a cue to prefill or say it aloud:</span><div class="starter-chips"><button class="button button-small button-outline starter-chip" type="button" id="starter-full" data-starter="Search is ready for Friday. PDF export needs two more working days. I recommend releasing search first.">Use full starter draft</button><button class="button button-small button-outline starter-chip" type="button" id="starter-ready" data-starter="Search is ready for the Friday release.">+ What’s ready</button><button class="button button-small button-outline starter-chip" type="button" id="starter-tradeoff" data-starter="PDF export needs two additional working days and the scope change has not been approved.">+ 2-day trade-off</button><button class="button button-small button-outline starter-chip" type="button" id="starter-recommend" data-starter="I recommend releasing search on Friday; should we review PDF export separately for approval?">+ Recommendation</button></div></div>
+          <div class="control-buttons"><button class="button button-primary" id="start-button">Start practice</button><button class="button button-primary" id="record-button" hidden><svg class="icon"><use href="#i-mic"/></svg><span>Record answer</span></button><button class="button button-primary" id="done-button" hidden><svg class="icon"><use href="#i-check"/></svg>Done speaking <span id="recording-time">00:00</span></button><button class="button button-outline" id="play-button" hidden><svg class="icon"><use href="#i-play"/></svg>Tap to play reply</button><button class="button button-outline" id="continue-button" hidden>Continue practice</button><button class="button button-outline" id="finish-button" hidden>Finish & reflect</button></div>
+          <div class="controls-meta"><span id="mic-status">Your microphone is off</span><div><button class="icon-button" id="stop-button" aria-label="Stop the current activity" title="Stop" disabled><svg class="icon"><use href="#i-stop"/></svg></button><button class="icon-button" id="reset-button" aria-label="Reset practice and clear attempts" title="Reset" disabled><svg class="icon"><use href="#i-refresh"/></svg></button></div></div>
+          <div class="type-answer" id="type-answer"><form id="answer-form"><label class="composer-label" for="answer-text">Message your project manager <span class="composer-shortcut">Enter to send · Shift+Enter for new line</span></label><div class="composer-row"><textarea id="answer-text" rows="2" maxlength="4000" placeholder="Write your update here (what’s ready, the 2-day trade-off, your recommendation)…"></textarea><button class="button button-primary composer-send" type="submit" id="send-button" disabled>Send answer</button></div><div class="composer-meta"><span id="answer-hint">Type and press Send to begin, or click Start practice above.</span></div></form></div>
+        </div>
+      </section>
+
+      <aside class="coach-card panel" aria-labelledby="coach-heading"><div class="panel-heading"><h2 id="coach-heading">Your coaching notes</h2></div><div id="coach-placeholder"><div class="coach-symbol" aria-hidden="true"><svg class="icon"><use href="#i-spark"/></svg></div><h3>Clarity comes with practice.</h3><p class="muted">After the conversation, we’ll reflect on what worked and make your next explanation stronger.</p><div class="coaching-dimensions"><div>Plain language</div><div>A clear point</div><div>Confident recommendations</div><div>Respectful wording</div><div>Facts & a next step</div></div><div class="small-note"><span class="note-line"></span><p>Sound like yourself.<br>Just a little clearer.</p></div></div><div id="feedback" aria-live="polite" hidden></div><div class="feedback-actions" id="feedback-actions" hidden><button class="button button-outline" id="hear-example"><svg class="icon"><use href="#i-volume"/></svg>Hear the example</button><button class="button button-primary" id="retry-button">Try the conversation again</button></div></aside>
+    </div>
+    <section class="comparison panel" id="comparison" aria-labelledby="comparison-heading" hidden><div class="panel-heading"><svg class="icon"><use href="#i-refresh"/></svg><h2 id="comparison-heading">Same facts. A fresh attempt.</h2></div><div id="comparison-content"></div></section>
+    <footer class="page-footer"><span>A practice space for people who build things.</span><label class="voice-toggle"><input type="checkbox" id="voice-enabled" checked><svg class="icon"><use href="#i-volume"/></svg>Spoken replies</label><span>Temporary practice · Reset clears the session</span></footer>
+  </main>
+
+  <dialog id="how-dialog"><div class="dialog-heading"><h2>A clearer message, one attempt at a time.</h2><button class="icon-button close-dialog" aria-label="Close instructions">×</button></div><ol class="how-steps"><li><strong>Set the scene.</strong> Add the facts and the message you want to communicate.</li><li><strong>Have the conversation.</strong> Respond to your simulated project manager by voice or text.</li><li><strong>Reflect with your coach.</strong> Finish after one to three answers for specific feedback and an example.</li><li><strong>Try it again.</strong> Keep the same facts and practise a clearer explanation.</li></ol><p class="muted">This is AI-guided practice. Review its suggestions against your actual facts and authority. Polite questions and honest uncertainty belong in confident communication.</p></dialog>
+  <dialog id="setup-dialog"><div class="dialog-heading"><h2>Practice setup</h2><button class="icon-button close-dialog" aria-label="Close setup">×</button></div><p>Provider keys are read on the server and never sent to this page.</p><dl class="provider-list"><div><dt>Gemini · role-play & coaching</dt><dd id="gemini-status">Checking…</dd></div><div><dt>Groq · Whisper & Orpheus</dt><dd id="groq-status">Checking…</dd></div></dl><p class="muted">If a key is missing, add it to <code>.env</code> in the project root using the names in <code>.env.example</code>. Keep real keys out of chat and source control.</p><p class="muted">“Key found” checks configuration, not provider permissions or account limits. If Orpheus requests model terms, an organization admin can review them in the <a href="https://console.groq.com/playground?model=canopylabs%2Forpheus-v1-english" target="_blank" rel="noopener noreferrer">Groq console</a>.</p><button class="button button-primary" id="refresh-config">Check configuration again</button></dialog>
+</body>
+</html>

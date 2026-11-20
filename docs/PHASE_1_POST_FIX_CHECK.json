@@ -1,0 +1,102 @@
+{
+  "checkedAt": "2026-11-19T08:01:42.311561+05:00",
+  "method": "Live HTTP endpoints on a separate local server; no browser automation",
+  "checks": [
+    {
+      "check": "Page and browser resources",
+      "status": "passed",
+      "resources": 6,
+      "seconds": 0.01
+    },
+    {
+      "check": "Synthetic voice input through website endpoint",
+      "status": "passed",
+      "audioBytes": 219278,
+      "transcript": "Search is ready for Friday, PDF export needs two more working days, I recommend releasing search first.",
+      "seconds": 0.38
+    },
+    {
+      "check": "Orpheus output through website endpoint",
+      "status": "failed",
+      "code": "MODEL_TERMS_REQUIRED",
+      "message": "Groq voice needs an organization admin to review and accept the Orpheus model terms in the Groq console. Turn spoken replies off to continue in text.",
+      "seconds": 0.14
+    },
+    {
+      "check": "Live stakeholder opening",
+      "status": "passed",
+      "reply": "Hi, could you give me a quick update on what is ready for the Friday release and what your recommendation is regarding the new PDF export feature?",
+      "seconds": 1.12
+    },
+    {
+      "check": "Submit transcript without duplicate answers",
+      "status": "passed",
+      "acceptedAnswers": 1,
+      "seconds": 0.01
+    },
+    {
+      "check": "Live stakeholder follow-up",
+      "status": "passed",
+      "reply": "Sounds good on releasing search first. When could we realistically expect the PDF export to be ready after that?",
+      "seconds": 1.88
+    },
+    {
+      "check": "Live coaching with grounded evidence",
+      "status": "passed",
+      "feedback": {
+        "strength": {
+          "title": "Clear Recommendation",
+          "quote": "Search is ready for Friday, PDF export needs two more working days, I recommend releasing search first.",
+          "reason": "You clearly communicated the status of both items and offered an explicit, practical recommendation."
+        },
+        "improvements": [
+          {
+            "dimension": "Structure and relevance",
+            "quote": "Search is ready for Friday, PDF export needs two more working days, I recommend releasing search first.",
+            "reason": "Combining multiple distinct updates into a single run-on sentence could make it harder for the stakeholder to process each point separately.",
+            "suggestion": "Break the update into separate clauses or sentences to clearly distinguish current readiness from the scope trade-off."
+          }
+        ],
+        "improvedMessage": "Search is ready for the Friday release. The newly proposed PDF export needs two additional working days, so I recommend releasing search first while we evaluate the scope change.",
+        "summary": "You provided a clear recommendation and status update, though separating your points can improve readability.",
+        "retryFocus": "Structuring multi-part updates clearly.",
+        "missingFacts": [],
+        "comparison": ""
+      },
+      "knownFacts": "Search is ready for the Friday release. PDF export was newly proposed and needs two additional working days. The scope change has not been approved. No customer impact or time savings have been measured.",
+      "seconds": 2.18
+    },
+    {
+      "check": "Retry with preserved facts and separate history",
+      "status": "passed",
+      "sameFacts": true,
+      "attempts": 2,
+      "seconds": 0.0
+    },
+    {
+      "check": "Reset temporary practice",
+      "status": "passed",
+      "httpStatus": 204,
+      "seconds": 0.0
+    }
+  ],
+  "configured": {
+    "gemini": true,
+    "groq": true,
+    "coaching": true,
+    "speech": true
+  },
+  "serverLog": [
+    "Using shared Python: /home/bakar/Documents/NAVTTC/.venv/bin/python",
+    "DevBridge: http://127.0.0.1:46629",
+    "INFO:     Started server process [451672]",
+    "INFO:     Waiting for application startup.",
+    "INFO:     Application startup complete.",
+    "INFO:     Uvicorn running on http://127.0.0.1:46629 (Press CTRL+C to quit)",
+    "INFO:     Shutting down",
+    "INFO:     Waiting for application shutdown.",
+    "INFO:     Application shutdown complete.",
+    "INFO:     Finished server process [451672]"
+  ],
+  "status": "incomplete"
+}
