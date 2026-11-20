@@ -14,6 +14,7 @@ from server.app import create_app
 from server.config import PROJECT_ROOT, Settings, load_settings, parse_env
 from server.errors import AppError
 from server.models import Context, validate_feedback
+from server.prompts import COACH_PROMPT, ROLEPLAY_PROMPT
 from server.providers import Providers
 from server.scenario import DEFAULT_CONTEXT
 from server.sessions import PracticeStore
@@ -501,3 +502,16 @@ def test_validate_feedback_delivery_timing_and_edge_cases(context):
     future_rel = feedback_value(history)
     future_rel["improvedMessage"] = "Search is ready for Friday. PDF export needs two additional working days and can be considered for a future release."
     assert validate_feedback(future_rel, history, context)
+
+
+def test_prompts_prevent_attempt1_comparison_drift_and_grounding_leaks():
+    assert "previousAttempt is null" in COACH_PROMPT
+    assert '""' in COACH_PROMPT
+    assert "No previous attempt to compare." in COACH_PROMPT
+    assert "zero customer impact" in COACH_PROMPT.lower()
+    assert "summary" in COACH_PROMPT and "retryFocus" in COACH_PROMPT and "suggestion" in COACH_PROMPT
+    assert "EXACT, contiguous excerpt" in COACH_PROMPT
+    assert "simulated project manager" in ROLEPLAY_PROMPT
+    assert "not a coding interview" in ROLEPLAY_PROMPT
+    assert "two days later" in ROLEPLAY_PROMPT
+    assert "only one" in ROLEPLAY_PROMPT.lower() and "?" in ROLEPLAY_PROMPT
