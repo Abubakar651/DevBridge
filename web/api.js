@@ -1,29 +1,67 @@
 // Same-origin HTTP transport. Credentials and coaching logic stay in Python.
+const apiError = (message, code, status) => {
+  const error = new Error(message);
+  error.code = code;
+  if (status !== undefined) error.status = status;
+  return error;
+};
+
+const sessionPath = (id, suffix = '') => {
+  if (typeof id !== 'string' || !id.trim()) {
+    throw apiError('The practice session is missing. Reset and start again.', 'INVALID_INPUT');
+  }
+  const encoded = encodeURIComponent(id);
+  return suffix ? `practice/${encoded}/${suffix}` : `practice/${encoded}`;
+};
+
 export async function request(path, { data, audio, signal, method, keepalive = false } = {}) {
-  const response = await fetch(`/api/${path}`, {
-    method: method || (data !== undefined || audio ? 'POST' : 'GET'), signal, keepalive,
-    headers: audio ? { 'Content-Type': audio.type || 'audio/webm' } : data !== undefined ? { 'Content-Type': 'application/json' } : {},
-    body: audio || (data !== undefined ? JSON.stringify(data) : undefined),
-  });
+  const cleanPath = String(path).replace(/^\/+/, '');
+  const contentType = audio ? (audio.type || '').trim() || 'audio/webm' : data !== undefined ? 'application/json' : null;
+  let response;
+  try {
+    response = await fetch(`/api/${cleanPath}`, {
+      method: method || (data !== undefined || audio ? 'POST' : 'GET'),
+      signal,
+      keepalive,
+      headers: contentType ? { 'Content-Type': contentType } : {},
+      body: audio || (data !== undefined ? JSON.stringify(data) : undefined),
+    });
+  } catch (error) {
+    if (error?.name === 'AbortError' || signal?.aborted) throw error;
+    throw apiError('Could not reach the local server. Check that it is running and retry.', 'NETWORK_ERROR');
+  }
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    const error = new Error(body.error?.message || 'This step could not be completed. Please retry.');
-    error.code = body.error?.code || 'REQUEST_FAILED'; throw error;
+    throw apiError(body.error?.message || 'This step could not be completed. Please retry.', body.error?.code || 'REQUEST_FAILED', response.status);
   }
   if (response.status === 204) return null;
-  return path === 'speak' ? response.blob() : response.json();
+  try {
+    return await (cleanPath === 'speak' ? response.blob() : response.json());
+  } catch (error) {
+    if (error?.name === 'AbortError' || signal?.aborted) throw error;
+    throw apiError('The server returned an unreadable response. Please retry.', 'INVALID_RESPONSE', response.status);
+  }
 }
-const action = (id, name, requestId, signal, extra = {}) => request(`practice/${id}/${name}`, { data: { requestId, ...extra }, signal });
+
+const action = async (id, name, requestId, signal, extra = {}) =>
+  request(sessionPath(id, name), { data: { requestId, ...extra }, signal });
+
 export const api = {
-  config: () => request('config'),
+  config: signal => request('config', { signal }),
   create: (context, requestId, signal) => request('practice', { data: { context, requestId }, signal }),
   answer: (id, text, requestId, signal) => action(id, 'answer', requestId, signal, { text }),
   advance: (id, requestId, signal) => action(id, 'advance', requestId, signal),
   finish: (id, requestId, signal) => action(id, 'finish', requestId, signal),
   retry: (id, requestId, signal) => action(id, 'retry', requestId, signal),
-  stop: id => request(`practice/${id}/stop`, { method: 'POST', keepalive: true }),
-  reset: id => request(`practice/${id}`, { method: 'DELETE', keepalive: true }),
+  stop: async id => request(sessionPath(id, 'stop'), { method: 'POST', keepalive: true }),
+  reset: async id => request(sessionPath(id), { method: 'DELETE', keepalive: true }),
   transcribe: (audio, signal) => request('transcribe', { audio, signal }),
   speak: (text, signal) => request('speak', { data: { text }, signal }),
-  segments: async (text, signal) => (await request('speech/segments', { data: { text }, signal })).segments,
+  segments: async (text, signal) => {
+    const result = await request('speech/segments', { data: { text }, signal });
+    if (!Array.isArray(result?.segments)) {
+      throw apiError('The server returned an invalid speech segment list.', 'INVALID_RESPONSE');
+    }
+    return result.segments;
+  },
 };

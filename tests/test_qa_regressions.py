@@ -2,6 +2,8 @@
 
 import asyncio
 import json
+import shutil
+import subprocess
 import uuid
 from pathlib import Path
 from unittest.mock import patch
@@ -534,3 +536,72 @@ def test_speech_segments_boundary_and_markdown_edge_cases():
 
     with pytest.raises(ValueError):
         speech_segments("Hello", limit=True)
+
+
+def run_node_module(script: str):
+    node = shutil.which("node")
+    assert node, "Node.js is required to execute browser module regression tests."
+    result = subprocess.run(
+        [node, "--input-type=module", "-e", script],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, f"Node script failed:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+
+
+def test_web_api_encodes_session_ids_normalizes_errors_and_validates_payloads():
+    run_node_module(
+        """
+        import assert from 'node:assert/strict';
+        import { api, request } from './web/api.js';
+
+        const calls = [];
+        globalThis.fetch = async (url, options) => {
+          calls.push([url, options]);
+          if (url === '/api/fail-http') {
+            return { ok: false, status: 503, json: async () => ({ error: { code: 'PROVIDER_BUSY', message: 'Busy' } }) };
+          }
+          if (url === '/api/bad-json') {
+            return { ok: true, status: 200, json: async () => { throw new SyntaxError('Unexpected token <'); } };
+          }
+          if (url === '/api/speech/segments') {
+            return { ok: true, status: 200, json: async () => ({ wrongKey: true }) };
+          }
+          if (url === '/api/speak') {
+            return { ok: true, status: 200, blob: async () => ({ size: 44 }) };
+          }
+          return { ok: true, status: 204, json: async () => ({}) };
+        };
+
+        await assert.rejects(() => api.stop(''), err => err.code === 'INVALID_INPUT');
+        await assert.rejects(() => api.reset(undefined), err => err.code === 'INVALID_INPUT');
+        await assert.rejects(() => api.answer('', 'hi', 'req-1234567890123456'), err => err.code === 'INVALID_INPUT');
+        assert.equal(calls.length, 0);
+
+        await api.stop('abc/def?x=1');
+        assert.equal(calls.at(-1)[0], '/api/practice/abc%2Fdef%3Fx%3D1/stop');
+        assert.equal(calls.at(-1)[1].keepalive, true);
+
+        await assert.rejects(() => request('fail-http'), err => err.status === 503 && err.code === 'PROVIDER_BUSY');
+        await assert.rejects(() => request('bad-json'), err => err.code === 'INVALID_RESPONSE');
+        await assert.rejects(() => api.segments('hello'), err => err.code === 'INVALID_RESPONSE');
+
+        await api.transcribe({ type: '   ' });
+        assert.equal(calls.at(-1)[1].headers['Content-Type'], 'audio/webm');
+
+        const blob = await api.speak('hi');
+        assert.equal(blob.size, 44);
+
+        const controller = new AbortController();
+        await api.config(controller.signal);
+        assert.equal(calls.at(-1)[1].signal, controller.signal);
+
+        globalThis.fetch = async () => { throw new TypeError('Failed to fetch'); };
+        await assert.rejects(() => api.config(), err => err.code === 'NETWORK_ERROR' && /local server/i.test(err.message));
+
+        globalThis.fetch = async () => { throw new DOMException('Cancelled', 'AbortError'); };
+        await assert.rejects(() => api.config(), err => err.name === 'AbortError');
+        """
+    )
