@@ -919,3 +919,18 @@ def test_web_index_html_apple_hig_structure_and_accessibility():
         match = re.search(r'aria-labelledby="([^"]+)"', dialog_tag)
         assert match and f'id="{match.group(1)}"' in html, f"Dialog missing valid aria-labelledby: {dialog_tag}"
     assert "style=" not in html and "<style" not in html and html.count("<script") == 1
+
+
+def test_web_styles_css_apple_system_blue_glass_tokens_and_qa_fixes():
+    css = (PROJECT_ROOT / "web" / "styles.css").read_text(encoding="utf-8")
+    css_lower = css.lower()
+
+    assert "#007aff" in css_lower and "#0a84ff" in css_lower
+    assert "-apple-system" in css and "BlinkMacSystemFont" in css and "SF Pro Display" in css
+    assert '[data-theme="dark"]' in css and '[data-theme="light"]' in css and "prefers-color-scheme: dark" in css
+    assert "backdrop-filter:" in css and "saturate(180%)" in css
+    assert "prefers-reduced-transparency" in css
+    assert "clip-path: inset(50%)" in css
+
+    for selector in (".segmented-control", ".composer-dock", ".setting-row", ".field-error", ".scene-toggle", ".turn-progress", ".scene-brief"):
+        assert selector in css, f"Missing CSS rules for {selector}"
