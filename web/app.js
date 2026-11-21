@@ -240,7 +240,7 @@ function renderComparison(state) {
 function stateLabel(state) {
   if (state.state === 'LISTENING') return state.recordReady ? 'Listening. Say it in your own words.' : 'Waiting for microphone permission…';
   if (state.state === 'TRANSCRIBING') return 'Turning your answer into text…';
-  if (state.state === 'THINKING') return state.serverStage === 'coach' ? 'Your coach is reflecting on the conversation…' : 'Your project manager is thinking…';
+  if (state.state === 'THINKING') return state.serverStage === 'coach' ? 'Your coach is reflecting on the conversation…' : `Your ${selectedScenario()?.stakeholder || 'project manager'} is thinking…`;
   if (state.state === 'SYNTHESIZING') return 'Preparing the spoken reply…';
   if (state.state === 'SPEAKING') return state.blocked ? 'Your browser needs a tap to play audio.' : `${state.pending?.speaker || 'Your coach'} is speaking…`;
   if (state.state === 'ERROR') return state.answers ? 'Your accepted answers are still here.' : 'Nothing was submitted. Review the details and try again.';
