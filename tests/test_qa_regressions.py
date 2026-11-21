@@ -969,3 +969,41 @@ def test_web_app_js_apple_hig_controls_and_bug_fixes():
     assert "autoResize" in app
     assert "session.queuedAnswer = null" in app
 
+
+def test_prioritized_ui_fixes_from_browser_qa():
+    html = (PROJECT_ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    css = (PROJECT_ROOT / "web" / "styles.css").read_text(encoding="utf-8")
+    app = (PROJECT_ROOT / "web" / "app.js").read_text(encoding="utf-8")
+
+    # UI-1: Headings must not split mid-word or wrap letter-by-letter
+    assert '<span class="small-label">SCENARIO</span>' not in html
+    assert ".panel-heading h2 {" in css and "white-space: nowrap" in css and "overflow-wrap: normal" in css
+
+    # UI-2: WCAG AA contrast for filled blue controls and small accent text while retaining System Blue
+    assert "--accent-fill: #0066d6;" in css
+    assert "--accent-ink:" in css
+
+    # UI-3: Audience prefers <select> never hard-clips label text
+    assert "text-overflow: ellipsis" in css
+
+    # UI-4 & UI-7: Composer hint handles ERROR separately, avoids stale 'above' direction, and disables stop when idle
+    assert "state.state === 'ERROR'" in app
+    assert "Start practice above" not in app
+    assert "Continue practice above" not in app
+    assert "$('stop-button').disabled = !state.busy;" in app
+
+    # UI-5: Keep #reset-button & #stop-button visible in COACHING without empty dock artifact
+    assert 'id="coaching-dock-note"' in html
+    assert "$('send-button').hidden = Boolean(state.feedback);" in app
+    assert ".type-answer[hidden] + .composer-actions" in css
+    assert html.index('id="type-answer"') < html.index('id="reset-button"')
+    assert html.index('id="answer-form"') < html.index('id="type-answer"') < html.index('id="reset-button"') < html.index("</form>", html.index('id="answer-form"'))
+
+    # UI-6: Tablet sticky .context-card fits viewport height with internal scroll
+    assert "max-height: calc(100vh - 88px);" in css
+
+    # UI-7: Header setup pill reflects Live practice vs Test mode
+    assert 'id="setup-badge-label"' in html
+    assert "Live practice" in app and "Test mode" in app
+
+

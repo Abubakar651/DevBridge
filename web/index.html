@@ -42,7 +42,7 @@
         <button class="segmented-option" type="button" id="theme-dark" aria-pressed="false">Dark</button>
       </div>
       <label class="voice-toggle"><input type="checkbox" id="voice-enabled" checked><svg class="icon"><use href="#i-volume"/></svg><span>Spoken replies</span></label>
-      <button class="session-badge" type="button" id="setup-button"><span class="status-dot"></span>Local practice</button>
+      <button class="session-badge" type="button" id="setup-button"><span class="status-dot" id="setup-dot"></span><span id="setup-badge-label">Checking setup</span></button>
     </div>
   </header>
 
@@ -60,7 +60,6 @@
         <div class="panel-heading">
           <div class="panel-title-group">
             <h2 id="context-heading">Set the scene</h2>
-            <span class="small-label">SCENARIO</span>
           </div>
           <div class="segmented-control segmented-control-sm" role="group" aria-label="Scene view">
             <button class="segmented-option" type="button" id="brief-mode-brief" aria-pressed="false">Brief</button>
@@ -157,30 +156,31 @@
           </div>
 
           <div class="composer-dock">
-            <div class="type-answer" id="type-answer">
-              <form id="answer-form">
+            <form id="answer-form">
+              <div class="type-answer" id="type-answer">
                 <label class="composer-label" for="answer-text">Message your project manager <span class="composer-shortcut">Enter to send · Shift+Enter for new line</span></label>
                 <div class="composer-row">
                   <textarea id="answer-text" rows="2" maxlength="4000" placeholder="Write your update here (what’s ready, the 2-day trade-off, your recommendation)…"></textarea>
                 </div>
-                <div class="composer-actions">
-                  <div class="control-buttons">
-                    <button class="button button-primary" type="button" id="start-button">Start practice</button>
-                    <button class="button button-outline" type="button" id="record-button" hidden><svg class="icon"><use href="#i-mic"/></svg><span>Record answer</span></button>
-                    <button class="button button-primary" type="button" id="done-button" hidden><svg class="icon"><use href="#i-check"/></svg>Done speaking <span id="recording-time">00:00</span></button>
-                    <button class="button button-outline" type="button" id="play-button" hidden><svg class="icon"><use href="#i-play"/></svg>Tap to play reply</button>
-                    <button class="button button-outline" type="button" id="continue-button" hidden>Continue practice</button>
-                    <button class="button button-outline" type="button" id="finish-button" hidden>Finish &amp; reflect</button>
-                  </div>
-                  <div class="controls-meta">
-                    <button class="icon-button" type="button" id="stop-button" aria-label="Stop the current activity" title="Stop" disabled><svg class="icon"><use href="#i-stop"/></svg></button>
-                    <button class="icon-button" type="button" id="reset-button" aria-label="Reset practice and clear attempts" title="Reset" disabled><svg class="icon"><use href="#i-refresh"/></svg></button>
-                    <button class="button button-primary composer-send" type="submit" id="send-button" disabled><svg class="icon"><use href="#i-send"/></svg><span>Send answer</span></button>
-                  </div>
+                <div class="composer-meta"><span id="answer-hint">Write an update and press Send to begin, or click Start practice.</span></div>
+              </div>
+              <div class="composer-actions">
+                <div class="control-buttons">
+                  <span class="coaching-dock-note" id="coaching-dock-note" hidden>Practice complete · Reset to start a fresh scene</span>
+                  <button class="button button-primary" type="button" id="start-button">Start practice</button>
+                  <button class="button button-outline" type="button" id="record-button" hidden><svg class="icon"><use href="#i-mic"/></svg><span>Record answer</span></button>
+                  <button class="button button-primary" type="button" id="done-button" hidden><svg class="icon"><use href="#i-check"/></svg>Done speaking <span id="recording-time">00:00</span></button>
+                  <button class="button button-outline" type="button" id="play-button" hidden><svg class="icon"><use href="#i-play"/></svg>Tap to play reply</button>
+                  <button class="button button-outline" type="button" id="continue-button" hidden>Continue practice</button>
+                  <button class="button button-outline" type="button" id="finish-button" hidden>Finish &amp; reflect</button>
                 </div>
-                <div class="composer-meta"><span id="answer-hint">Type and press Send to begin, or click Start practice.</span></div>
-              </form>
-            </div>
+                <div class="controls-meta">
+                  <button class="icon-button" type="button" id="stop-button" aria-label="Stop the current activity" title="Stop" disabled><svg class="icon"><use href="#i-stop"/></svg></button>
+                  <button class="icon-button" type="button" id="reset-button" aria-label="Reset practice and clear attempts" title="Reset" disabled><svg class="icon"><use href="#i-refresh"/></svg></button>
+                  <button class="button button-primary composer-send" type="submit" id="send-button" disabled><svg class="icon"><use href="#i-send"/></svg><span>Send answer</span></button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
       </section>

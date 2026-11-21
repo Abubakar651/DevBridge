@@ -203,7 +203,7 @@ function render(state) {
   $('continue-button').hidden = !state.pending || state.busy || state.state === 'ERROR';
   $('finish-button').hidden = !active || Boolean(state.feedback) || state.serverStage === 'coach';
   $('finish-button').disabled = state.busy || !state.answers;
-  $('stop-button').disabled = !active && !state.busy;
+  $('stop-button').disabled = !state.busy;
   $('reset-button').disabled = !active;
   $('mic-status').textContent = state.state === 'LISTENING' ? (state.recordReady ? 'Recording · up to 60s' : 'Requesting mic…') : 'Mic off';
   $('voice-enabled').disabled = !configuration?.configured.speech;
@@ -212,17 +212,19 @@ function render(state) {
   $('voice-notice-message').textContent = state.voiceError?.message || '';
   $('retry-voice-button').disabled = state.busy;
   $('type-answer').hidden = Boolean(state.feedback);
+  $('send-button').hidden = Boolean(state.feedback);
+  $('coaching-dock-note').hidden = !state.feedback || state.blocked || Boolean(state.pending && !state.busy && state.state !== 'ERROR');
   $('answer-text').disabled = !state.canType || (!active && !canCoachStart);
   $('send-button').disabled = !state.canSend || (!active && !canCoachStart) || !$('answer-text').value.trim();
   $('answer-hint').textContent = !canCoachStart
     ? 'Connect Gemini or Groq in Practice setup to chat.'
     : !active
-      ? 'Write an update and press Send to begin, or click Start practice above.'
-      : state.state === 'ERROR' && state.queuedAnswer
-        ? 'Your draft is saved — click Retry response above to submit it.'
+      ? 'Write an update and press Send to begin, or click Start practice.'
+      : state.state === 'ERROR'
+        ? (state.queuedAnswer ? 'Your draft is saved — click Retry above to submit it.' : 'This step needs another try — use the retry button in the banner above.')
         : state.canSend
           ? (state.state === 'SPEAKING' || state.state === 'SYNTHESIZING' ? 'Your words. Sending interrupts audio.' : 'Your words. No perfect script needed.')
-          : (state.pending && !state.busy ? 'Practice paused — click Continue practice above before sending.' : 'Wait until the current step finishes.');
+          : (state.pending && !state.busy ? 'Practice paused — click Continue practice to resume.' : 'Wait until the current step finishes.');
   $('starter-bar').hidden = !active || Boolean(state.feedback);
   for (const chip of document.querySelectorAll('.starter-chip')) chip.disabled = !state.canSend;
   $('retry-button').disabled = state.busy;
@@ -259,6 +261,21 @@ async function refreshConfiguration() {
   } catch { configError = 'The local server is unavailable. Start it and check configuration again.'; }
   $('configuration-notice').hidden = !configError && Boolean(configuration?.configured.coaching && configuration?.configured.groq && configuration?.configured.speech);
   $('configuration-message').textContent = configError || (!configuration?.configured.coaching ? 'Connect Gemini or Groq to start your practice conversation. Your scenario is ready below.' : !configuration?.configured.groq ? 'Voice input is not configured yet. You can practise by typing.' : 'Spoken replies are not configured yet. Switch them off to continue practice.');
+  const badgeLabel = $('setup-badge-label');
+  const badgeDot = $('setup-dot');
+  if (badgeLabel) {
+    badgeLabel.textContent = configError
+      ? 'Server offline'
+      : !configuration?.configured.coaching
+        ? 'Setup needed'
+        : configuration.mode === 'live'
+          ? 'Live practice'
+          : 'Test mode';
+  }
+  if (badgeDot) {
+    badgeDot.classList.toggle('is-offline', Boolean(configError));
+    badgeDot.classList.toggle('is-warn', !configError && !configuration?.configured.coaching);
+  }
   $('refresh-config').disabled = false;
   render(session);
 }
