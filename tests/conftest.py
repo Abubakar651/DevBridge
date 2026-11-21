@@ -4,7 +4,14 @@ import wave
 import pytest
 
 from server.models import Context, validate_feedback
-from server.scenario import DEFAULT_CONTEXT
+
+TEST_CONTEXT = {
+    "scenarioId": "two-day-delay",
+    "discipline": "Software developer",
+    "familiarity": "Business-focused; prefers plain language",
+    "knownFacts": "Search is ready for the Friday release. PDF export was newly proposed and needs two additional working days. The scope change has not been approved. No customer impact or time savings have been measured.",
+    "goal": "Explain what is ready, make the scope trade-off clear, and recommend a realistic release plan without sounding defensive.",
+}
 
 QUESTION = "What is ready for Friday, and what do you recommend about PDF export?"
 ANSWER = "Search is ready for Friday. PDF export needs two more working days. I recommend releasing search first."
@@ -17,7 +24,7 @@ def anyio_backend():
 
 @pytest.fixture
 def context():
-    return Context.model_validate(DEFAULT_CONTEXT)
+    return Context.model_validate(TEST_CONTEXT)
 
 
 def feedback_value(history, previous=None):

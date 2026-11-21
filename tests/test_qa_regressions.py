@@ -513,7 +513,7 @@ def test_prompts_prevent_attempt1_comparison_drift_and_grounding_leaks():
     assert "zero customer impact" in COACH_PROMPT.lower()
     assert "summary" in COACH_PROMPT and "retryFocus" in COACH_PROMPT and "suggestion" in COACH_PROMPT
     assert "EXACT, contiguous excerpt" in COACH_PROMPT
-    assert "simulated project manager" in ROLEPLAY_PROMPT
+    assert "simulated workplace stakeholder" in ROLEPLAY_PROMPT
     assert "not a coding interview" in ROLEPLAY_PROMPT
     assert "two days later" in ROLEPLAY_PROMPT
     assert "only one" in ROLEPLAY_PROMPT.lower() and "?" in ROLEPLAY_PROMPT
@@ -1057,6 +1057,26 @@ def test_max_answers_is_ten_across_server_and_ui():
     assert "one to ten answers" in html
     assert "maxAnswers || 10" in session_js
     assert "maxAnswers || 10" in app_js
+
+
+def test_churn_pitch_and_two_day_delay_without_pdf_export():
+    from server.scenario import DEFAULT_CONTEXT, SCENARIO, SCENARIOS, get_scenario
+
+    assert SCENARIO["id"] == "churn-pitch"
+    assert DEFAULT_CONTEXT["scenarioId"] == "churn-pitch"
+    assert DEFAULT_CONTEXT["discipline"] == "AI/ML engineer"
+    assert [s["id"] for s in SCENARIOS] == ["churn-pitch", "two-day-delay"]
+    assert get_scenario("two-day-delay")["stakeholder"] == "Project manager"
+
+    for path in ("server/scenario.py", "server/prompts.py", "server/providers.py", "web/index.html", "web/app.js"):
+        content = (PROJECT_ROOT / path).read_text(encoding="utf-8").lower()
+        assert "pdf export" not in content, f"PDF export reference still present in {path}"
+        assert "release-update" not in content, f"release-update reference still present in {path}"
+
+    html = (PROJECT_ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    assert 'id="scenario"' in html
+    assert 'Customer churn' in html
+
 
 
 

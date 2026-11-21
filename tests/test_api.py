@@ -8,7 +8,7 @@ from server.app import create_app, cancellable
 from server.config import Settings
 from server.errors import AppError
 from server.scenario import DEFAULT_CONTEXT
-from conftest import FakeProvider, ANSWER, wav_audio
+from conftest import FakeProvider, ANSWER, TEST_CONTEXT, wav_audio
 
 
 def key():
@@ -76,7 +76,7 @@ async def test_rejects_foreign_origins_host_rebinding_and_invalid_inputs(setup_a
 async def test_complete_fastapi_practice_cycle_and_same_fact_retry(setup_app):
     app, provider = setup_app
     async with client_for(app) as client:
-        response = await client.post("/api/practice", json={"context": DEFAULT_CONTEXT, "requestId": key()})
+        response = await client.post("/api/practice", json={"context": TEST_CONTEXT, "requestId": key()})
         assert response.status_code == 200
         session_id = response.json()["sessionId"]
         base = f"/api/practice/{session_id}"
@@ -90,7 +90,7 @@ async def test_complete_fastapi_practice_cycle_and_same_fact_retry(setup_app):
         assert feedback["playback"]["speaker"] == "Coach"
         assert len(provider.coach_calls[0][1]) == 2
         retry = (await client.post(base + "/retry", json={"requestId": key()})).json()
-        assert retry["context"] == DEFAULT_CONTEXT
+        assert retry["context"] == TEST_CONTEXT
         assert retry["attempts"][1]["messages"] == []
         assert (await client.delete(base)).status_code == 204
         assert (await client.post(base + "/advance", json={"requestId": key()})).status_code == 404

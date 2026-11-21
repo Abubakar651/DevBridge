@@ -27,7 +27,7 @@ async def test_python_gemini_adapter_separates_modes_and_disables_request_storag
     def handler(request):
         body = json.loads(request.content)
         requests.append((request, body))
-        return generated({"reply": QUESTION} if "simulated project manager" in body["system_instruction"] else feedback_value(history))
+        return generated({"reply": QUESTION} if "simulated workplace stakeholder" in body["system_instruction"] else feedback_value(history))
     provider = Providers(settings(), transport=httpx.MockTransport(handler))
     assert await provider.roleplay(context, []) == QUESTION
     assert (await provider.coach(context, history)).strength.quote

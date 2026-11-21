@@ -30,7 +30,7 @@
   <header class="site-header">
     <div class="header-left">
       <a class="brand" href="/" aria-label="DevBridge home"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>dev<span>bridge</span><span class="brand-dot">.</span></a>
-      <span class="header-scenario-pill">The release update · PM · 3–5 min</span>
+      <span class="header-scenario-pill" id="header-scenario-pill">Customer churn pitch · VP Ops · 3–5 min</span>
     </div>
     <nav aria-label="Main navigation">
       <span class="nav-active">Practice room</span>
@@ -81,18 +81,22 @@
             <div class="scenario-icon" aria-hidden="true"><svg class="icon"><use href="#i-arrow"/></svg></div>
             <div>
               <p class="eyebrow">YOUR PRACTICE SCENARIO</p>
-              <h3>The release update</h3>
+              <h3 id="scenario-title">Customer churn prediction pitch</h3>
             </div>
           </div>
-          <p class="muted scenario-description">The release is close. There’s one more feature on the table. How do you explain the trade-off?</p>
-          <div class="scenario-meta"><span>Project manager</span><span>3–5 min</span></div>
+          <p class="muted scenario-description" id="scenario-description">Four weeks in, leadership wants to see usable results. How do you explain progress and justify a 4-week CRM rollout?</p>
+          <div class="scenario-meta"><span id="scenario-stakeholder">VP of Operations</span><span id="scenario-duration">3–5 min</span></div>
 
           <div class="scene-brief" id="scene-brief" hidden></div>
 
           <form id="context-form">
             <div class="setting-row">
+              <label for="scenario">Scenario</label>
+              <select id="scenario" name="scenario"><option value="churn-pitch">Customer churn prediction pitch</option><option value="two-day-delay">Explaining a 2-day delay</option></select>
+            </div>
+            <div class="setting-row">
               <label for="discipline">Your role</label>
-              <select id="discipline" name="discipline"><option>Software developer</option><option>AI/ML engineer</option></select>
+              <select id="discipline" name="discipline"><option>AI/ML engineer</option><option>Software developer</option></select>
             </div>
             <div class="setting-row">
               <label for="familiarity">Audience prefers</label>
@@ -118,9 +122,9 @@
           <span class="attempt-tag" id="attempt-label">FIRST ATTEMPT</span>
         </div>
         <div class="partner">
-          <div class="avatar" id="partner-avatar" aria-hidden="true">PM</div>
+          <div class="avatar" id="partner-avatar" aria-hidden="true">VP</div>
           <div class="partner-meta">
-            <strong id="partner-name">Your project manager</strong>
+            <strong id="partner-name">Your VP of Operations</strong>
             <span id="partner-description">A simulated workplace conversation</span>
           </div>
           <span class="mode-badge" id="mode-badge">ROLE-PLAY</span>
@@ -128,12 +132,12 @@
         <div class="conversation-area" id="conversation-area">
           <div class="conversation-empty" id="empty-conversation">
             <div class="voice-orbit" aria-hidden="true"><div class="orbit-ring"></div><div class="orbit-core"><span></span><span></span><span></span><span></span><span></span></div><span class="orbit-dot"></span></div>
-            <h3>A calm space to practise your update.</h3>
-            <p>Your project manager will ask for an update.<br>Speak or type — pause, rethink, and try again anytime.</p>
-            <div class="easy-start-steps" aria-label="Easy three-step opener">
-              <span><strong>1. Ready:</strong> Search for Friday</span>
-              <span><strong>2. Trade-off:</strong> PDF needs 2 days &amp; approval</span>
-              <span><strong>3. Recommend:</strong> Ship search first</span>
+            <h3 id="empty-headline">A calm space to practise your pitch.</h3>
+            <p id="empty-subtitle">Your VP of Operations will ask for an update.<br>Speak or type — pause, rethink, and try again anytime.</p>
+            <div class="easy-start-steps" id="easy-start-steps" aria-label="Easy three-step opener">
+              <span><strong>1. Progress:</strong> Data organized &amp; model tested</span>
+              <span><strong>2. Plan:</strong> 4 weeks for CRM alerts</span>
+              <span><strong>3. Ask:</strong> Approve rollout phase</span>
             </div>
             <div class="conversation-hint"><span class="tiny-check">✓</span> Your facts stay the same. Your explanation gets clearer.</div>
           </div>
@@ -157,19 +161,19 @@
           <div class="starter-bar" id="starter-bar" aria-label="Quick conversation starters" hidden>
             <span class="starter-label">Quick starters — tap to insert or say aloud:</span>
             <div class="starter-chips">
-              <button class="button button-small button-outline starter-chip" type="button" id="starter-full" data-starter="Search is ready for Friday. PDF export needs two more working days. I recommend releasing search first.">Use full starter draft</button>
-              <button class="button button-small button-outline starter-chip" type="button" id="starter-ready" data-starter="Search is ready for the Friday release.">+ What’s ready</button>
-              <button class="button button-small button-outline starter-chip" type="button" id="starter-tradeoff" data-starter="PDF export needs two additional working days and the scope change has not been approved.">+ 2-day trade-off</button>
-              <button class="button button-small button-outline starter-chip" type="button" id="starter-recommend" data-starter="I recommend releasing search on Friday; should we review PDF export separately for approval?">+ Recommendation</button>
+              <button class="button button-small button-outline starter-chip" type="button" id="starter-full" data-starter="Over the last four weeks, we organized your historical customer data and built a working model that spots customers likely to cancel. We need four more weeks to connect it directly to your CRM so your support team gets automatic alerts without manual exports. Would you like to approve that four-week rollout?">Use full starter draft</button>
+              <button class="button button-small button-outline starter-chip" type="button" id="starter-ready" data-starter="We spent the last four weeks organizing your customer data and building a model that spots customers at risk of cancelling.">+ Progress</button>
+              <button class="button button-small button-outline starter-chip" type="button" id="starter-tradeoff" data-starter="Connecting it to your CRM takes four more weeks so your support team receives automatic alerts without manual spreadsheets.">+ 4-week rollout</button>
+              <button class="button button-small button-outline starter-chip" type="button" id="starter-recommend" data-starter="I recommend approving the four-week integration phase so your team can act on at-risk customers directly in the CRM.">+ Recommendation</button>
             </div>
           </div>
 
           <div class="composer-dock">
             <form id="answer-form">
               <div class="type-answer" id="type-answer">
-                <label class="composer-label" for="answer-text">Message your project manager <span class="composer-shortcut">Enter to send · Shift+Enter for new line</span></label>
+                <label class="composer-label" for="answer-text"><span id="composer-prompt-label">Message your VP of Operations</span> <span class="composer-shortcut">Enter to send · Shift+Enter for new line</span></label>
                 <div class="composer-row">
-                  <textarea id="answer-text" rows="2" maxlength="4000" placeholder="Write your update here (what’s ready, the 2-day trade-off, your recommendation)…"></textarea>
+                  <textarea id="answer-text" rows="2" maxlength="4000" placeholder="Write your pitch here (progress so far, 4-week CRM rollout outcome, approval question)…"></textarea>
                 </div>
                 <div class="composer-meta"><span id="answer-hint">Write an update and press Send to begin, or click Start practice.</span></div>
               </div>

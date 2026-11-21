@@ -18,7 +18,7 @@ class Model(BaseModel):
 
 
 class Context(Model):
-    scenario_id: Literal["release-update"] = Field(alias="scenarioId")
+    scenario_id: Literal["churn-pitch", "two-day-delay"] = Field(alias="scenarioId")
     discipline: Literal["Software developer", "AI/ML engineer"]
     familiarity: ShortText = Field(max_length=200)
     known_facts: Annotated[str, StringConstraints(strip_whitespace=True, min_length=20, max_length=4000)] = Field(alias="knownFacts")

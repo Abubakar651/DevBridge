@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 
 from .errors import AppError
 from .models import Context, Feedback, MAX_ANSWERS
+from .scenario import get_scenario
 
 
 @dataclass
@@ -176,8 +177,9 @@ class PracticeStore:
                 if practice.deleted or generation != practice.generation:
                     raise AppError(409, "This step was stopped. Continue when you are ready.", "STALE_REQUEST")
                 if stage == "roleplay":
+                    stakeholder = get_scenario(practice.context.scenario_id)["stakeholder"]
                     practice.attempt.messages.append({"role": "assistant", "content": result})
-                    practice.attempt.playback = {"text": result, "speaker": "Project manager"}
+                    practice.attempt.playback = {"text": result, "speaker": stakeholder}
                 else:
                     practice.attempt.feedback = result
                     practice.attempt.playback = {"text": result.summary, "speaker": "Coach"}

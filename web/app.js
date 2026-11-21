@@ -103,15 +103,74 @@ function setCoachOpen(open) {
   $('coach-toggle').setAttribute('aria-expanded', coachOpen ? 'true' : 'false');
 }
 
+function selectedScenario() {
+  const list = configuration?.scenarios || (configuration?.scenario ? [configuration.scenario] : []);
+  const currentId = $('scenario')?.value || configuration?.scenario?.id;
+  return list.find(item => item.id === currentId) || configuration?.scenario || null;
+}
+
+function applyScenario(scenarioId, resetFields = true) {
+  const list = configuration?.scenarios || (configuration?.scenario ? [configuration.scenario] : []);
+  const scenario = list.find(item => item.id === scenarioId) || configuration?.scenario;
+  if (!scenario) return;
+  if ($('scenario')) $('scenario').value = scenario.id;
+  if ($('header-scenario-pill')) $('header-scenario-pill').textContent = `${scenario.title} · ${scenario.stakeholderTag || scenario.stakeholder} · ${scenario.duration}`;
+  if ($('scenario-title')) $('scenario-title').textContent = scenario.title;
+  if ($('scenario-description')) $('scenario-description').textContent = scenario.description;
+  if ($('scenario-stakeholder')) $('scenario-stakeholder').textContent = scenario.stakeholder;
+  if ($('scenario-duration')) $('scenario-duration').textContent = scenario.duration;
+  if ($('empty-headline') && scenario.emptyHeadline) $('empty-headline').textContent = scenario.emptyHeadline;
+  if ($('empty-subtitle') && scenario.emptySubtitle) {
+    const lines = scenario.emptySubtitle.split('\n');
+    const nodes = [];
+    lines.forEach((line, idx) => {
+      if (idx > 0) nodes.push(document.createElement('br'));
+      nodes.push(document.createTextNode(line));
+    });
+    $('empty-subtitle').replaceChildren(...nodes);
+  }
+  if ($('easy-start-steps') && Array.isArray(scenario.steps)) {
+    const stepNodes = scenario.steps.map(step => {
+      const span = document.createElement('span');
+      span.append(element('strong', '', step.label), ` ${step.text}`);
+      return span;
+    });
+    $('easy-start-steps').replaceChildren(...stepNodes);
+  }
+  if (scenario.starters) {
+    for (const [key, id] of [['full', 'starter-full'], ['ready', 'starter-ready'], ['tradeoff', 'starter-tradeoff'], ['recommend', 'starter-recommend']]) {
+      if ($(id) && scenario.starters[key]) $(id).dataset.starter = scenario.starters[key];
+    }
+  }
+  if ($('answer-text') && scenario.placeholder) $('answer-text').placeholder = scenario.placeholder;
+  if ($('composer-prompt-label')) $('composer-prompt-label').textContent = `Message your ${scenario.stakeholder}`;
+
+  if (resetFields && scenario.defaultContext) {
+    for (const key of ['discipline', 'knownFacts', 'goal', 'familiarity']) {
+      $(key === 'knownFacts' ? 'facts' : key).value = scenario.defaultContext[key];
+    }
+    for (const [, errorNode] of contextChecks) {
+      errorNode.textContent = '';
+      errorNode.hidden = true;
+    }
+    updateContextValidity(false);
+    autoResize($('facts'), 280);
+    autoResize($('goal'), 180);
+    renderSceneBrief();
+  }
+  render(session);
+}
+
 function renderMessages(state) {
   const messages = state.attempt?.messages || [];
   const signature = JSON.stringify([state.attempt?.number, messages]);
   if (signature === messageSignature) return;
   messageSignature = signature;
   $('messages').replaceChildren();
+  const stakeholderLabel = (selectedScenario()?.stakeholder || 'Stakeholder').toUpperCase();
   for (const message of messages) {
     const item = element('li', `message ${message.role}`);
-    item.append(element('div', 'message-label', message.role === 'user' ? 'YOU' : 'PROJECT MANAGER'));
+    item.append(element('div', 'message-label', message.role === 'user' ? 'YOU' : stakeholderLabel));
     paragraph(item, '', message.content);
     $('messages').append(item);
   }
@@ -209,10 +268,14 @@ function render(state) {
     span.classList.toggle('is-done', index < state.answers);
     span.classList.toggle('is-active', active && !state.feedback && index === state.answers && state.answers < maxAnswers);
   });
+  const scenario = selectedScenario();
+  const stakeholder = scenario?.stakeholder || 'Project manager';
+  const avatar = scenario?.avatar || 'PM';
   $('attempt-label').textContent = active ? `ATTEMPT ${state.attempt.number}` : 'FIRST ATTEMPT';
-  $('partner-name').textContent = coaching ? 'Your communication coach' : 'Your project manager';
+  $('partner-name').textContent = coaching ? 'Your communication coach' : `Your ${stakeholder}`;
   $('partner-description').textContent = coaching ? 'Specific feedback, with your facts intact' : 'A simulated workplace conversation';
-  $('partner-avatar').textContent = coaching ? 'VC' : 'PM';
+  $('partner-avatar').textContent = coaching ? 'VC' : avatar;
+  if ($('composer-prompt-label')) $('composer-prompt-label').textContent = `Message your ${stakeholder}`;
   $('mode-badge').textContent = coaching ? 'COACHING' : 'ROLE-PLAY';
   $('start-button').hidden = active;
   $('start-button').disabled = !canCoachStart;
@@ -270,11 +333,17 @@ async function refreshConfiguration() {
   try {
     configuration = await api.config(); configError = '';
     if (!contextInitialized) {
-      for (const key of ['discipline', 'knownFacts', 'goal', 'familiarity']) $(key === 'knownFacts' ? 'facts' : key).value = configuration.defaultContext[key];
+      if ($('scenario') && Array.isArray(configuration.scenarios)) {
+        const opts = configuration.scenarios.map(item => {
+          const opt = document.createElement('option');
+          opt.value = item.id;
+          opt.textContent = item.title;
+          return opt;
+        });
+        $('scenario').replaceChildren(...opts);
+      }
       contextInitialized = true;
-      autoResize($('facts'), 280);
-      autoResize($('goal'), 180);
-      renderSceneBrief();
+      applyScenario(configuration.defaultContext.scenarioId, true);
     }
     $('gemini-status').textContent = configuration.configured.gemini ? 'Key found' : 'Key missing';
     $('groq-status').textContent = configuration.configured.groq ? 'Key found' : configuration.configured.speech ? 'Output key found' : 'Key missing';
@@ -344,7 +413,7 @@ function validateContext() {
   return allValid;
 }
 function readContext() {
-  return { scenarioId: configuration.scenario.id, discipline: $('discipline').value, knownFacts: $('facts').value.trim(), goal: $('goal').value.trim(), familiarity: $('familiarity').value };
+  return { scenarioId: $('scenario')?.value || configuration.scenario.id, discipline: $('discipline').value, knownFacts: $('facts').value.trim(), goal: $('goal').value.trim(), familiarity: $('familiarity').value };
 }
 for (const [input] of contextChecks) {
   input.addEventListener('input', () => {
@@ -355,6 +424,12 @@ for (const [input] of contextChecks) {
 }
 for (const id of ['discipline', 'familiarity']) {
   $(id).addEventListener('change', () => { if (briefMode === 'brief') renderSceneBrief(); });
+}
+if ($('scenario')) {
+  $('scenario').addEventListener('change', event => {
+    if (session.attempt || session.busy) return;
+    applyScenario(event.target.value, true);
+  });
 }
 
 let savedTheme = 'auto';
@@ -373,16 +448,10 @@ $('start-button').addEventListener('click', () => {
   session.start(readContext());
 });
 $('reset-scene-button').addEventListener('click', () => {
-  if (session.attempt || session.busy || !configuration?.defaultContext) return;
-  for (const key of ['discipline', 'knownFacts', 'goal', 'familiarity']) $(key === 'knownFacts' ? 'facts' : key).value = configuration.defaultContext[key];
-  for (const [, errorNode] of contextChecks) {
-    errorNode.textContent = '';
-    errorNode.hidden = true;
-  }
-  updateContextValidity(false);
-  autoResize($('facts'), 280);
-  autoResize($('goal'), 180);
-  renderSceneBrief();
+  if (session.attempt || session.busy) return;
+  const fallback = selectedScenario()?.defaultContext || configuration?.defaultContext;
+  if (!fallback) return;
+  applyScenario(fallback.scenarioId, true);
   if (session.state === 'ERROR' && !session.attempt) session.recover();
 });
 for (const chip of document.querySelectorAll('.starter-chip')) {

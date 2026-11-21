@@ -15,6 +15,7 @@ from .config import Settings
 from .errors import AppError
 from .models import Context, Feedback, RoleplayResponse, validate_feedback
 from .prompts import COACH_PROMPT, ROLEPLAY_PROMPT
+from .scenario import get_scenario
 
 logger = logging.getLogger(__name__)
 AUDIO_EXTENSIONS = {
@@ -127,9 +128,10 @@ class Providers:
                     raise ValueError("The stakeholder must ask one question.")
                 return reply
             except (ValidationError, ValueError):
-                raise AppError(502, "The stakeholder response was incomplete. Please retry.", "INVALID_PROVIDER_OUTPUT", validation_hint="Ask exactly one short question as the project manager; do not deliver the learner's update or make their recommendation.") from None
+                raise AppError(502, "The stakeholder response was incomplete. Please retry.", "INVALID_PROVIDER_OUTPUT", validation_hint="Ask exactly one short question as the stakeholder; do not deliver the learner's update or make their recommendation.") from None
 
-        return await self.reasoning(ROLEPLAY_PROMPT, {"context": context.model_dump(by_alias=True), "history": history}, RoleplayResponse.model_json_schema(), validate, task="roleplay")
+        stakeholder = get_scenario(context.scenario_id)["stakeholder"]
+        return await self.reasoning(ROLEPLAY_PROMPT, {"stakeholder": stakeholder, "context": context.model_dump(by_alias=True), "history": history}, RoleplayResponse.model_json_schema(), validate, task="roleplay")
 
     async def coach(self, context: Context, history: list[dict], previous_history: list[dict] | None = None) -> Feedback:
         return await self.reasoning(COACH_PROMPT, {"context": context.model_dump(by_alias=True), "currentAttempt": history, "previousAttempt": previous_history}, Feedback.model_json_schema(), lambda value: validate_feedback(value, history, context, previous_history), task="coach")
@@ -264,7 +266,7 @@ class Providers:
         data = await self.request("POST", "https://api.groq.com/openai/v1/audio/transcriptions",
             headers={"Authorization": f"Bearer {self.settings.groq_key}"},
             files={"file": (f"answer.{extension}", audio, base_mime)},
-            data={"model": self.settings.stt_model, "language": "en", "response_format": "json", "prompt": "Workplace project update, release, scope, software development, AI, machine learning, PDF export."})
+            data={"model": self.settings.stt_model, "language": "en", "response_format": "json", "prompt": "Workplace project update, machine learning, customer churn, CRM rollout, release scope, software development, AI."})
         text = data.get("text", "") if isinstance(data, dict) else ""
         if not isinstance(text, str) or not text.strip():
             raise AppError(422, "No speech was transcribed. Record another answer or type it instead.", "EMPTY_TRANSCRIPT")
