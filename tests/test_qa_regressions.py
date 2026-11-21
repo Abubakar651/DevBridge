@@ -934,3 +934,38 @@ def test_web_styles_css_apple_system_blue_glass_tokens_and_qa_fixes():
 
     for selector in (".segmented-control", ".composer-dock", ".setting-row", ".field-error", ".scene-toggle", ".turn-progress", ".scene-brief"):
         assert selector in css, f"Missing CSS rules for {selector}"
+
+
+def test_web_app_js_apple_hig_controls_and_bug_fixes():
+    app = (PROJECT_ROOT / "web" / "app.js").read_text(encoding="utf-8")
+
+    # 1. Safe optional chaining for previous.feedback in renderComparison
+    assert "previous?.feedback?.retryFocus" in app
+
+    # 2. Prevent premature coaching header while paused and hide finish-button in coach stage
+    assert "const coaching = Boolean(state.feedback) || (state.serverStage === 'coach' && state.state === 'THINKING');" in app
+    assert "$('finish-button').hidden = !active || Boolean(state.feedback) || state.serverStage === 'coach';" in app
+
+    # 3. Apple HIG controls: theme switcher, Brief|Customize, mobile scene toggle, 3-step progress, inline validation
+    for required_token in (
+        "theme-auto",
+        "theme-light",
+        "theme-dark",
+        "dataset.theme",
+        "brief-mode-brief",
+        "brief-mode-edit",
+        "scene-brief",
+        "scene-toggle",
+        "turn-steps",
+        "facts-error",
+        "goal-error",
+        "noValidate = true",
+    ):
+        assert required_token in app, f"Missing {required_token} in web/app.js"
+
+    # 4. Existing UI contract invariants preserved
+    assert "setAttribute('aria-busy', state.busy ? 'true' : 'false')" in app
+    assert "$('error-panel').focus()" in app
+    assert "autoResize" in app
+    assert "session.queuedAnswer = null" in app
+

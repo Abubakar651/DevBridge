@@ -3,6 +3,7 @@ import { Recorder, SpeechPlayer } from './audio.js';
 import { PracticeSession } from './session.js';
 
 const $ = id => document.getElementById(id);
+const THEME_KEY = 'devbridge-theme';
 const recorder = new Recorder();
 const player = new SpeechPlayer(api.speak, { segmentText: api.segments });
 const session = new PracticeSession({ api, recorder, player });
@@ -13,6 +14,7 @@ let feedbackSignature = '';
 let errorSignature = '';
 let configError = '';
 let contextInitialized = false;
+let briefMode = 'edit';
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -25,6 +27,64 @@ function autoResize(field, maxPx = 220) {
   if (supportsFieldSizing || !field) return;
   field.style.height = 'auto';
   field.style.height = `${Math.min(field.scrollHeight, maxPx)}px`;
+}
+
+const themeButtons = [
+  ['auto', $('theme-auto')],
+  ['light', $('theme-light')],
+  ['dark', $('theme-dark')],
+];
+function applyTheme(theme, persist = true) {
+  const mode = theme === 'light' || theme === 'dark' ? theme : 'auto';
+  document.documentElement.dataset.theme = mode;
+  for (const [value, button] of themeButtons) {
+    if (!button) continue;
+    const active = value === mode;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+  }
+  if (persist) {
+    try { localStorage.setItem(THEME_KEY, mode); } catch { /* ignore storage errors */ }
+  }
+}
+
+function renderSceneBrief() {
+  const chips = element('div', 'brief-chips');
+  const roleLabel = $('discipline').selectedOptions?.[0]?.textContent || $('discipline').value;
+  const audienceLabel = $('familiarity').selectedOptions?.[0]?.textContent || $('familiarity').value;
+  if (roleLabel) chips.append(element('span', 'brief-chip', roleLabel));
+  if (audienceLabel) chips.append(element('span', 'brief-chip', audienceLabel));
+
+  const factsBlock = element('div', 'brief-block');
+  factsBlock.append(element('strong', '', 'Key facts'));
+  paragraph(factsBlock, '', $('facts').value.trim() || 'No facts entered yet.');
+
+  const goalBlock = element('div', 'brief-block');
+  goalBlock.append(element('strong', '', 'Your goal'));
+  paragraph(goalBlock, '', $('goal').value.trim() || 'No goal entered yet.');
+
+  $('scene-brief').replaceChildren(chips, factsBlock, goalBlock);
+}
+
+function setBriefMode(mode) {
+  briefMode = mode === 'brief' ? 'brief' : 'edit';
+  if (briefMode === 'brief') renderSceneBrief();
+  $('scene-brief').hidden = briefMode !== 'brief';
+  $('context-form').hidden = briefMode === 'brief';
+  $('brief-mode-brief').classList.toggle('is-active', briefMode === 'brief');
+  $('brief-mode-brief').setAttribute('aria-pressed', briefMode === 'brief' ? 'true' : 'false');
+  $('brief-mode-edit').classList.toggle('is-active', briefMode === 'edit');
+  $('brief-mode-edit').setAttribute('aria-pressed', briefMode === 'edit' ? 'true' : 'false');
+  if (briefMode === 'edit') {
+    autoResize($('facts'), 280);
+    autoResize($('goal'), 180);
+  }
+}
+
+function setSceneCollapsed(collapsed) {
+  $('scene-body').classList.toggle('is-collapsed', collapsed);
+  $('scene-toggle').setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  $('scene-toggle').textContent = collapsed ? 'Show scene' : 'Hide scene';
 }
 
 function renderMessages(state) {
@@ -89,7 +149,8 @@ function renderComparison(state) {
   const previous = state.attempts.at(-2);
   const current = state.attempt;
   const body = element('div', 'comparison-body');
-  paragraph(body, '', current.feedback?.comparison || `Your focus: ${previous.feedback.retryFocus}`);
+  const fallbackFocus = previous?.feedback?.retryFocus || 'Make your core message and recommendation clear.';
+  paragraph(body, '', current?.feedback?.comparison || `Your focus: ${fallbackFocus}`);
   const columns = element('div', 'comparison-columns');
   for (const attempt of [previous, current]) {
     const column = element('div', '');
@@ -117,10 +178,16 @@ function render(state) {
   document.body.dataset.state = state.state;
   $('practice').setAttribute('aria-busy', state.busy ? 'true' : 'false');
   const active = Boolean(state.attempt);
-  const coaching = Boolean(state.feedback) || state.serverStage === 'coach';
+  const coaching = Boolean(state.feedback) || (state.serverStage === 'coach' && state.state === 'THINKING');
   const canCoachStart = Boolean(configuration?.configured.coaching);
+  const maxAnswers = configuration?.maxAnswers || 3;
   $('state-label').textContent = stateLabel(state);
-  $('turn-count').textContent = `${state.answers} / ${configuration?.maxAnswers || 3} answers`;
+  $('turn-count').textContent = `${state.answers} / ${maxAnswers} answers`;
+  const stepSpans = $('turn-steps')?.querySelectorAll('span') || [];
+  stepSpans.forEach((span, index) => {
+    span.classList.toggle('is-done', index < state.answers);
+    span.classList.toggle('is-active', active && !state.feedback && index === state.answers && state.answers < maxAnswers);
+  });
   $('attempt-label').textContent = active ? `ATTEMPT ${state.attempt.number}` : 'FIRST ATTEMPT';
   $('partner-name').textContent = coaching ? 'Your communication coach' : 'Your project manager';
   $('partner-description').textContent = coaching ? 'Specific feedback, with your facts intact' : 'A simulated workplace conversation';
@@ -134,11 +201,11 @@ function render(state) {
   $('done-button').disabled = !state.recordReady;
   $('play-button').hidden = !state.blocked;
   $('continue-button').hidden = !state.pending || state.busy || state.state === 'ERROR';
-  $('finish-button').hidden = !active || Boolean(state.feedback);
+  $('finish-button').hidden = !active || Boolean(state.feedback) || state.serverStage === 'coach';
   $('finish-button').disabled = state.busy || !state.answers;
   $('stop-button').disabled = !active && !state.busy;
   $('reset-button').disabled = !active;
-  $('mic-status').textContent = state.state === 'LISTENING' && state.recordReady ? 'Recording · up to 60 seconds' : 'Your microphone is off';
+  $('mic-status').textContent = state.state === 'LISTENING' ? (state.recordReady ? 'Recording · up to 60s' : 'Requesting mic…') : 'Mic off';
   $('voice-enabled').disabled = !configuration?.configured.speech;
   $('voice-enabled').checked = state.voiceEnabled;
   $('voice-notice').hidden = !state.voiceError;
@@ -151,9 +218,11 @@ function render(state) {
     ? 'Connect Gemini or Groq in Practice setup to chat.'
     : !active
       ? 'Write an update and press Send to begin, or click Start practice above.'
-      : state.canSend
-        ? (state.state === 'SPEAKING' || state.state === 'SYNTHESIZING' ? 'Your words. Sending interrupts audio.' : 'Your words. No perfect script needed.')
-        : (state.pending && !state.busy ? 'Practice paused — click Continue practice above before sending.' : 'Wait until the current step finishes.');
+      : state.state === 'ERROR' && state.queuedAnswer
+        ? 'Your draft is saved — click Retry response above to submit it.'
+        : state.canSend
+          ? (state.state === 'SPEAKING' || state.state === 'SYNTHESIZING' ? 'Your words. Sending interrupts audio.' : 'Your words. No perfect script needed.')
+          : (state.pending && !state.busy ? 'Practice paused — click Continue practice above before sending.' : 'Wait until the current step finishes.');
   $('starter-bar').hidden = !active || Boolean(state.feedback);
   for (const chip of document.querySelectorAll('.starter-chip')) chip.disabled = !state.canSend;
   $('retry-button').disabled = state.busy;
@@ -181,6 +250,7 @@ async function refreshConfiguration() {
       contextInitialized = true;
       autoResize($('facts'), 280);
       autoResize($('goal'), 180);
+      renderSceneBrief();
     }
     $('gemini-status').textContent = configuration.configured.gemini ? 'Key found' : 'Key missing';
     $('groq-status').textContent = configuration.configured.groq ? 'Key found' : configuration.configured.speech ? 'Output key found' : 'Key missing';
@@ -193,21 +263,68 @@ async function refreshConfiguration() {
   render(session);
 }
 
+$('context-form').noValidate = true;
+$('context-form').addEventListener('submit', event => event.preventDefault());
 const contextChecks = [
-  [$('facts'), 20, 'Add at least 20 visible characters describing what is known.'],
-  [$('goal'), 10, 'Add at least 10 visible characters describing what you want to communicate.'],
+  [$('facts'), $('facts-error'), 20, 'Add at least 20 visible characters describing what is known.'],
+  [$('goal'), $('goal-error'), 10, 'Add at least 10 visible characters describing what you want to communicate.'],
 ];
-function updateContextValidity() {
-  for (const [input, minimum, message] of contextChecks) input.setCustomValidity(input.value.trim().length < minimum ? message : '');
+function updateContextValidity(showErrors = false) {
+  let allValid = true;
+  let firstInvalid = null;
+  for (const [input, errorNode, minimum, message] of contextChecks) {
+    const invalid = input.value.trim().length < minimum;
+    input.setCustomValidity(invalid ? message : '');
+    if (invalid) {
+      allValid = false;
+      if (!firstInvalid) firstInvalid = input;
+    }
+    const displayError = invalid && (showErrors || !errorNode.hidden);
+    input.classList.toggle('is-invalid', displayError);
+    if (displayError) {
+      input.setAttribute('aria-invalid', 'true');
+      errorNode.textContent = message;
+      errorNode.hidden = false;
+    } else {
+      input.removeAttribute('aria-invalid');
+      if (!invalid) {
+        errorNode.textContent = '';
+        errorNode.hidden = true;
+      }
+    }
+  }
+  return { allValid, firstInvalid };
 }
 function validateContext() {
-  updateContextValidity();
-  return $('context-form').reportValidity();
+  const { allValid, firstInvalid } = updateContextValidity(true);
+  if (!allValid) {
+    setSceneCollapsed(false);
+    setBriefMode('edit');
+    firstInvalid?.focus();
+  }
+  return allValid;
 }
 function readContext() {
   return { scenarioId: configuration.scenario.id, discipline: $('discipline').value, knownFacts: $('facts').value.trim(), goal: $('goal').value.trim(), familiarity: $('familiarity').value };
 }
-for (const [input] of contextChecks) input.addEventListener('input', () => { updateContextValidity(); autoResize(input, 280); });
+for (const [input] of contextChecks) {
+  input.addEventListener('input', () => {
+    updateContextValidity(false);
+    autoResize(input, input.id === 'goal' ? 180 : 280);
+    if (briefMode === 'brief') renderSceneBrief();
+  });
+}
+for (const id of ['discipline', 'familiarity']) {
+  $(id).addEventListener('change', () => { if (briefMode === 'brief') renderSceneBrief(); });
+}
+
+let savedTheme = 'auto';
+try { savedTheme = localStorage.getItem(THEME_KEY) || 'auto'; } catch { savedTheme = 'auto'; }
+applyTheme(savedTheme, false);
+for (const [mode, button] of themeButtons) button?.addEventListener('click', () => applyTheme(mode));
+$('brief-mode-brief').addEventListener('click', () => setBriefMode('brief'));
+$('brief-mode-edit').addEventListener('click', () => setBriefMode('edit'));
+$('scene-toggle').addEventListener('click', () => setSceneCollapsed(!$('scene-body').classList.contains('is-collapsed')));
 
 $('start-button').addEventListener('click', () => {
   if (!validateContext()) return;
@@ -216,9 +333,14 @@ $('start-button').addEventListener('click', () => {
 $('reset-scene-button').addEventListener('click', () => {
   if (session.attempt || session.busy || !configuration?.defaultContext) return;
   for (const key of ['discipline', 'knownFacts', 'goal', 'familiarity']) $(key === 'knownFacts' ? 'facts' : key).value = configuration.defaultContext[key];
-  updateContextValidity();
+  for (const [, errorNode] of contextChecks) {
+    errorNode.textContent = '';
+    errorNode.hidden = true;
+  }
+  updateContextValidity(false);
   autoResize($('facts'), 280);
   autoResize($('goal'), 180);
+  renderSceneBrief();
   if (session.state === 'ERROR' && !session.attempt) session.recover();
 });
 for (const chip of document.querySelectorAll('.starter-chip')) {
@@ -253,6 +375,7 @@ $('answer-form').addEventListener('submit', async event => {
     autoResize($('answer-text'));
     await session.startWithAnswer(readContext(), answer);
     if (!session.snapshot && !$('answer-text').value) {
+      session.queuedAnswer = null;
       $('answer-text').value = answer;
       autoResize($('answer-text'));
       render(session);
