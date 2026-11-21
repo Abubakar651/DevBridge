@@ -51,20 +51,20 @@ async def test_idempotent_create_answers_and_advances_cannot_duplicate_turns(con
 
 
 @pytest.mark.anyio
-async def test_three_answers_transition_to_coaching_in_python(context):
+async def test_max_answers_transition_to_coaching_in_python(context):
     store, provider = PracticeStore(), FakeProvider()
     session_id = store.create(context, key())["sessionId"]
     await store.advance(session_id, key(), provider)
-    for _ in range(3):
+    for _ in range(10):
         store.answer(session_id, ANSWER, key())
         await store.advance(session_id, key(), provider)
     practice = store.get(session_id)
-    assert practice.answers == 3
+    assert practice.answers == 10
     assert practice.attempt.feedback
-    assert len(provider.roleplay_calls) == 3
+    assert len(provider.roleplay_calls) == 10
     assert len(provider.coach_calls) == 1
     with pytest.raises(AppError):
-        store.answer(session_id, "A fourth answer", key())
+        store.answer(session_id, "An eleventh answer", key())
 
 
 @pytest.mark.anyio

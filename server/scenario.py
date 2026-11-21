@@ -5,7 +5,7 @@ SCENARIO = {
     "title": "The release update",
     "stakeholder": "Project manager",
     "duration": "3-5 minutes",
-    "maxAnswers": 3,
+    "maxAnswers": 10,
 }
 DEFAULT_CONTEXT = {
     "scenarioId": SCENARIO["id"],

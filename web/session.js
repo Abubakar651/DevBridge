@@ -30,7 +30,7 @@ export class PracticeSession {
   get canSend() {
     if (['THINKING', 'TRANSCRIBING', 'LISTENING'].includes(this.state) || this.feedback) return false;
     if (!this.attempt) return true;
-    return !this.serverStage && this.attempt.messages.at(-1)?.role === 'assistant' && this.answers < (this.snapshot?.maxAnswers || 3);
+    return !this.serverStage && this.attempt.messages.at(-1)?.role === 'assistant' && this.answers < (this.snapshot?.maxAnswers || 10);
   }
   get busy() { return !['IDLE', 'ERROR'].includes(this.state); }
   get feedback() { return this.attempt?.feedback; }

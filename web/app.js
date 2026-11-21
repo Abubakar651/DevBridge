@@ -197,10 +197,14 @@ function render(state) {
   const active = Boolean(state.attempt);
   const coaching = Boolean(state.feedback) || (state.serverStage === 'coach' && state.state === 'THINKING');
   const canCoachStart = Boolean(configuration?.configured.coaching);
-  const maxAnswers = configuration?.maxAnswers || 3;
+  const maxAnswers = configuration?.maxAnswers || 10;
   $('state-label').textContent = stateLabel(state);
   $('turn-count').textContent = `${state.answers} / ${maxAnswers} answers`;
-  const stepSpans = $('turn-steps')?.querySelectorAll('span') || [];
+  const turnSteps = $('turn-steps');
+  if (turnSteps && turnSteps.children.length !== maxAnswers) {
+    turnSteps.replaceChildren(...Array.from({ length: maxAnswers }, () => document.createElement('span')));
+  }
+  const stepSpans = turnSteps?.querySelectorAll('span') || [];
   stepSpans.forEach((span, index) => {
     span.classList.toggle('is-done', index < state.answers);
     span.classList.toggle('is-active', active && !state.feedback && index === state.answers && state.answers < maxAnswers);

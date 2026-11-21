@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, Validation
 
 from .errors import AppError
 
-MAX_ANSWERS = 3
+MAX_ANSWERS = 10
 ShortText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 Dimension = Literal["Audience clarity", "Structure and relevance", "Assertiveness", "Respect", "Accuracy and next steps"]
 

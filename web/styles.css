@@ -645,18 +645,18 @@ textarea::placeholder { color: var(--muted-soft); }
 .turn-progress {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   margin-left: auto;
 }
 .turn-progress span {
-  width: 18px;
+  width: 8px;
   height: 4px;
   border-radius: var(--radius-pill);
   background: var(--glass-well);
   transition: background-color .22s var(--spring), width .22s var(--spring);
 }
 .turn-progress span.is-done { background: var(--accent); }
-.turn-progress span.is-active { background: var(--accent); width: 24px; opacity: .55; }
+.turn-progress span.is-active { background: var(--accent); width: 14px; opacity: .55; }
 .turn-count {
   color: var(--muted);
   font-size: .78rem;

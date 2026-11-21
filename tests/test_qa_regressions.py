@@ -1042,4 +1042,22 @@ def test_conversation_default_home_and_separate_scene_and_coach_toggles():
         assert token in app, f"Missing {token} in web/app.js"
 
 
+def test_max_answers_is_ten_across_server_and_ui():
+    from server.models import MAX_ANSWERS
+    from server.scenario import SCENARIO
+
+    assert MAX_ANSWERS == 10
+    assert SCENARIO["maxAnswers"] == 10
+
+    html = (PROJECT_ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    session_js = (PROJECT_ROOT / "web" / "session.js").read_text(encoding="utf-8")
+    app_js = (PROJECT_ROOT / "web" / "app.js").read_text(encoding="utf-8")
+
+    assert "0 / 10 answers" in html
+    assert "one to ten answers" in html
+    assert "maxAnswers || 10" in session_js
+    assert "maxAnswers || 10" in app_js
+
+
+
 
