@@ -180,10 +180,12 @@ class PracticeStore:
                     stakeholder = get_scenario(practice.context.scenario_id)["stakeholder"]
                     practice.attempt.messages.append({"role": "assistant", "content": result})
                     practice.attempt.playback = {"text": result, "speaker": stakeholder}
+                    closed = bool(getattr(provider, "last_roleplay_closed", False))
+                    practice.pending = "coach" if closed else None
                 else:
                     practice.attempt.feedback = result
                     practice.attempt.playback = {"text": result.summary, "speaker": "Coach"}
-                practice.pending = None
+                    practice.pending = None
                 practice.touched = self.clock()
                 self.remember(practice, request_id, "advance")
                 return self.snapshot(practice)

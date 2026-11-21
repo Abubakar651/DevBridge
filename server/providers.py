@@ -121,14 +121,19 @@ class Providers:
             raise AppError(502, "The model did not finish a readable response. Please retry this step.", "INVALID_PROVIDER_OUTPUT") from None
 
     async def roleplay(self, context: Context, history: list[dict]) -> str:
+        self.last_roleplay_closed = False
+
         def validate(value):
             try:
-                reply = RoleplayResponse.model_validate(value).reply
-                if reply.count("?") != 1:
-                    raise ValueError("The stakeholder must ask one question.")
-                return reply
+                parsed = RoleplayResponse.model_validate(value)
+                closed = bool(parsed.closed and history)
+                expected_q = 0 if closed else 1
+                if parsed.reply.count("?") != expected_q:
+                    raise ValueError("Question count mismatch.")
+                self.last_roleplay_closed = closed
+                return parsed.reply
             except (ValidationError, ValueError):
-                raise AppError(502, "The stakeholder response was incomplete. Please retry.", "INVALID_PROVIDER_OUTPUT", validation_hint="Ask exactly one short question as the stakeholder; do not deliver the learner's update or make their recommendation.") from None
+                raise AppError(502, "The stakeholder response was incomplete. Please retry.", "INVALID_PROVIDER_OUTPUT", validation_hint="Ask exactly one short question with closed=false, or wrap up politely with zero question marks and closed=true.") from None
 
         stakeholder = get_scenario(context.scenario_id)["stakeholder"]
         return await self.reasoning(ROLEPLAY_PROMPT, {"stakeholder": stakeholder, "context": context.model_dump(by_alias=True), "history": history}, RoleplayResponse.model_json_schema(), validate, task="roleplay")

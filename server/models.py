@@ -30,7 +30,8 @@ class SpeechRequest(Model):
 
 
 class RoleplayResponse(Model):
-    reply: ShortText = Field(max_length=1500, description="The project manager asks the learner one short question about the supplied scenario. Include exactly one question mark; do not answer the question for the learner.")
+    reply: ShortText = Field(max_length=1500, description="The stakeholder's short reply. When closed is false, ask exactly one short question; when closed is true, give a brief polite closing statement with no question mark.")
+    closed: bool = Field(default=False, description="Set true only after the learner has answered and the conversation reaches a clear, natural closing (next step or approval agreed and closing acknowledged).")
 
 
 class Strength(Model):

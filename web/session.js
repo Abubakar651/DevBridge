@@ -126,7 +126,7 @@ export class PracticeSession {
             }
           }
           if (!current()) return;
-          this.pending = null;
+          this.pending = stage.nextStage === 'coach' ? { type: 'advance', id: crypto.randomUUID() } : null;
         } else {
           this.setState('THINKING');
           let snapshot;
@@ -142,10 +142,20 @@ export class PracticeSession {
             const queued = this.queuedAnswer;
             this.queuedAnswer = null;
             this.pending = { type: 'answer', text: queued, id: crypto.randomUUID() };
+          } else if (stage.type === 'advance') {
+            if (snapshot.playback) {
+              this.pending = {
+                type: 'speak',
+                ...snapshot.playback,
+                nextStage: snapshot.pendingStage === 'coach' && !snapshot.attempts.at(-1)?.feedback ? 'coach' : null,
+              };
+            } else if (snapshot.pendingStage === 'coach' && !snapshot.attempts.at(-1)?.feedback) {
+              this.pending = { type: 'advance', id: crypto.randomUUID() };
+            } else {
+              this.pending = null;
+            }
           } else {
-            this.pending = stage.type === 'advance'
-              ? (snapshot.playback ? { type: 'speak', ...snapshot.playback } : null)
-              : { type: 'advance', id: crypto.randomUUID() };
+            this.pending = { type: 'advance', id: crypto.randomUUID() };
           }
         }
       }

@@ -1078,6 +1078,57 @@ def test_churn_pitch_and_two_day_delay_without_pdf_export():
     assert 'Customer churn' in html
 
 
+@pytest.mark.anyio
+async def test_natural_closing_sentence_triggers_coaching_and_chains_in_session(context):
+    import json
+    import httpx
+    from server.providers import Providers
+    from server.sessions import PracticeStore
+    from conftest import ANSWER, feedback_value
+
+    history = [{"role": "assistant", "content": "How is the project going?"}, {"role": "user", "content": ANSWER}]
+    def handler(request):
+        body = json.loads(request.content)
+        is_roleplay = "simulated workplace stakeholder" in body["system_instruction"]
+        payload = {"reply": "Sounds great, let us proceed with that plan.", "closed": True} if is_roleplay else feedback_value(history)
+        return httpx.Response(200, json={"status": "completed", "steps": [{"type": "model_output", "content": [{"type": "text", "text": json.dumps(payload)}]}]})
+
+    provider = Providers(
+        __import__("server.config", fromlist=["Settings"]).Settings(gemini_key="k"),
+        transport=httpx.MockTransport(handler),
+        fallback_enabled=False,
+    )
+    store = PracticeStore()
+    session_id = store.create(context, "req-create-1")["sessionId"]
+    store.get(session_id).attempt.messages.extend(history)
+    snap = await store.advance(session_id, "req-adv-1", provider)
+    assert snap["pendingStage"] == "coach"
+    assert snap["attempts"][0]["messages"][-1]["content"] == "Sounds great, let us proceed with that plan."
+
+    run_node_module(
+        """
+        import assert from 'node:assert/strict';
+        import { PracticeSession } from './web/session.js';
+
+        let adv = 0;
+        const api = {
+          create: async () => ({ sessionId: 'sc1', maxAnswers: 10, pendingStage: 'roleplay', attempts: [{ number: 1, messages: [], feedback: null }], playback: null }),
+          advance: async () => {
+            adv++;
+            if (adv === 1) return { sessionId: 'sc1', maxAnswers: 10, pendingStage: 'coach', attempts: [{ number: 1, messages: [{ role: 'user', content: 'Thanks!' }, { role: 'assistant', content: 'Aligned, see you next week.' }], feedback: null }], playback: { text: 'Aligned, see you next week.', speaker: 'VP of Operations' } };
+            return { sessionId: 'sc1', maxAnswers: 10, pendingStage: null, attempts: [{ number: 1, messages: [{ role: 'user', content: 'Thanks!' }, { role: 'assistant', content: 'Aligned, see you next week.' }], feedback: { strength: { title: 'Clear', quote: 'Thanks!', reason: 'Direct' }, improvements: [], improvedMessage: 'Thanks!', summary: 'Good.', retryFocus: 'Keep clear.', missingFacts: [], comparison: '' } }], playback: null };
+          },
+          stop: async () => ({}), reset: async () => ({}),
+        };
+        const session = new PracticeSession({ api, recorder: { supported: false, cancel() {} }, player: { stop() {}, play: async () => {} } });
+        await session.start({ scenarioId: 'churn-pitch' });
+        assert.equal(adv, 2);
+        assert.ok(session.feedback);
+        """
+    )
+
+
+
 
 
 
