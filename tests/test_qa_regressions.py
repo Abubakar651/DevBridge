@@ -1007,3 +1007,39 @@ def test_prioritized_ui_fixes_from_browser_qa():
     assert "Live practice" in app and "Test mode" in app
 
 
+def test_conversation_default_home_and_separate_scene_and_coach_toggles():
+    html = (PROJECT_ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    css = (PROJECT_ROOT / "web" / "styles.css").read_text(encoding="utf-8")
+    app = (PROJECT_ROOT / "web" / "app.js").read_text(encoding="utf-8")
+
+    # Home screen defaults to centered conversation with both side panels collapsed
+    assert 'id="workspace" data-scene-open="false" data-coach-open="false"' in html
+    assert 'id="context-panel" aria-labelledby="context-heading" hidden' in html
+    assert 'id="coach-panel" aria-labelledby="coach-heading" hidden' in html
+
+    # Separate accessible toggle buttons + close buttons in side panel headers
+    assert 'id="scene-toggle" aria-expanded="false" aria-controls="context-panel"' in html
+    assert 'id="coach-toggle" aria-expanded="false" aria-controls="coach-panel"' in html
+    assert 'id="coach-toggle-badge"' in html
+    assert 'id="close-scene-button"' in html
+    assert 'id="close-coach-button"' in html
+
+    # Responsive grid adapts to open/closed side panels without overlapping or hidden desktop toggles
+    assert '.workspace[data-scene-open="true"][data-coach-open="false"]' in css
+    assert '.workspace[data-scene-open="false"][data-coach-open="true"]' in css
+    assert '.workspace[data-scene-open="true"][data-coach-open="true"]' in css
+    assert '.panel-toggle' in css
+
+    # JS wires separate toggles, close buttons, auto-open on invalid scene / ready coaching feedback
+    for token in (
+        'setSceneOpen',
+        'setCoachOpen',
+        'close-scene-button',
+        'close-coach-button',
+        'coach-toggle',
+        'coach-toggle-badge',
+    ):
+        assert token in app, f"Missing {token} in web/app.js"
+
+
+

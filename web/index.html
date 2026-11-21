@@ -23,6 +23,7 @@
     <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
     <symbol id="i-volume" viewBox="0 0 24 24"><path d="m11 5-6 4H2v6h3l6 4zM15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/></symbol>
     <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4z"/></symbol>
+    <symbol id="i-sidebar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></symbol>
   </defs></svg>
   <a class="skip-link" href="#practice">Skip to practice</a>
 
@@ -48,24 +49,32 @@
 
   <main class="page">
     <div class="workspace-bar">
-      <h1 id="page-title">Make your work <em>make sense.</em></h1>
-      <span class="workspace-subtitle">Practise with clarity, confidence, and respect.</span>
+      <div class="workspace-title-group">
+        <h1 id="page-title">Make your work <em>make sense.</em></h1>
+        <span class="workspace-subtitle">Practise with clarity, confidence, and respect.</span>
+      </div>
+      <div class="workspace-toggles" role="group" aria-label="Workspace panels">
+        <button class="button button-small button-outline panel-toggle scene-toggle" type="button" id="scene-toggle" aria-expanded="false" aria-controls="context-panel"><svg class="icon"><use href="#i-sidebar"/></svg><span id="scene-toggle-label">Set the scene</span></button>
+        <button class="button button-small button-outline panel-toggle coach-toggle" type="button" id="coach-toggle" aria-expanded="false" aria-controls="coach-panel"><svg class="icon"><use href="#i-spark"/></svg><span id="coach-toggle-label">Your coaching notes</span><span class="panel-toggle-badge" id="coach-toggle-badge" hidden>Ready</span></button>
+      </div>
     </div>
     <div id="configuration-notice" class="notice" role="status" hidden><span id="configuration-message"></span><button class="text-button" type="button" id="notice-setup">View setup</button></div>
     <div id="test-notice" class="notice" role="status" hidden>Test preview · Responses are scripted for verification. This is not a live AI session.</div>
     <div id="error-panel" class="error-panel" role="alert" tabindex="-1" hidden><div><strong>This step needs another try.</strong><p id="error-message"></p></div><button class="button button-small button-outline" type="button" id="recover-button">Try again</button></div>
 
-    <div class="workspace">
-      <aside class="context-card panel" aria-labelledby="context-heading">
+    <div class="workspace" id="workspace" data-scene-open="false" data-coach-open="false">
+      <aside class="context-card panel" id="context-panel" aria-labelledby="context-heading" hidden>
         <div class="panel-heading">
           <div class="panel-title-group">
             <h2 id="context-heading">Set the scene</h2>
           </div>
-          <div class="segmented-control segmented-control-sm" role="group" aria-label="Scene view">
-            <button class="segmented-option" type="button" id="brief-mode-brief" aria-pressed="false">Brief</button>
-            <button class="segmented-option is-active" type="button" id="brief-mode-edit" aria-pressed="true">Customize</button>
+          <div class="panel-heading-controls">
+            <div class="segmented-control segmented-control-sm" role="group" aria-label="Scene view">
+              <button class="segmented-option" type="button" id="brief-mode-brief" aria-pressed="false">Brief</button>
+              <button class="segmented-option is-active" type="button" id="brief-mode-edit" aria-pressed="true">Customize</button>
+            </div>
+            <button class="icon-button panel-close" type="button" id="close-scene-button" aria-label="Hide Set the scene" title="Hide Set the scene">×</button>
           </div>
-          <button class="button button-small button-outline scene-toggle" type="button" id="scene-toggle" aria-expanded="true" aria-controls="scene-body">Hide scene</button>
         </div>
         <div class="scene-body" id="scene-body">
           <div class="scene-intro">
@@ -185,10 +194,11 @@
         </div>
       </section>
 
-      <aside class="coach-card panel" aria-labelledby="coach-heading">
+      <aside class="coach-card panel" id="coach-panel" aria-labelledby="coach-heading" hidden>
         <div class="panel-heading">
           <h2 id="coach-heading">Your coaching notes</h2>
           <span class="small-label">5 SIGNALS</span>
+          <button class="icon-button panel-close" type="button" id="close-coach-button" aria-label="Hide Your coaching notes" title="Hide Your coaching notes">×</button>
         </div>
         <div id="coach-placeholder">
           <div class="coach-symbol" aria-hidden="true"><svg class="icon"><use href="#i-spark"/></svg></div>

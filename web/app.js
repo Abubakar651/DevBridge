@@ -15,6 +15,8 @@ let errorSignature = '';
 let configError = '';
 let contextInitialized = false;
 let briefMode = 'edit';
+let sceneOpen = false;
+let coachOpen = false;
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -81,10 +83,24 @@ function setBriefMode(mode) {
   }
 }
 
-function setSceneCollapsed(collapsed) {
-  $('scene-body').classList.toggle('is-collapsed', collapsed);
-  $('scene-toggle').setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-  $('scene-toggle').textContent = collapsed ? 'Show scene' : 'Hide scene';
+function setSceneOpen(open) {
+  sceneOpen = Boolean(open);
+  $('context-panel').hidden = !sceneOpen;
+  $('workspace').dataset.sceneOpen = sceneOpen ? 'true' : 'false';
+  $('scene-toggle').classList.toggle('is-active', sceneOpen);
+  $('scene-toggle').setAttribute('aria-expanded', sceneOpen ? 'true' : 'false');
+  if (sceneOpen && briefMode === 'edit') {
+    autoResize($('facts'), 280);
+    autoResize($('goal'), 180);
+  }
+}
+
+function setCoachOpen(open) {
+  coachOpen = Boolean(open);
+  $('coach-panel').hidden = !coachOpen;
+  $('workspace').dataset.coachOpen = coachOpen ? 'true' : 'false';
+  $('coach-toggle').classList.toggle('is-active', coachOpen);
+  $('coach-toggle').setAttribute('aria-expanded', coachOpen ? 'true' : 'false');
 }
 
 function renderMessages(state) {
@@ -114,6 +130,7 @@ function renderFeedback(state) {
   $('coach-placeholder').hidden = Boolean(feedback);
   $('feedback-actions').hidden = !feedback;
   if (!feedback) return;
+  setCoachOpen(true);
   const strength = element('section', 'feedback-section');
   paragraph(strength, 'feedback-kicker', 'WHAT WORKED');
   strength.append(element('h3', 'feedback-title', feedback.strength.title));
@@ -227,6 +244,7 @@ function render(state) {
           : (state.pending && !state.busy ? 'Practice paused — click Continue practice to resume.' : 'Wait until the current step finishes.');
   $('starter-bar').hidden = !active || Boolean(state.feedback);
   for (const chip of document.querySelectorAll('.starter-chip')) chip.disabled = !state.canSend;
+  $('coach-toggle-badge').hidden = !state.feedback;
   $('retry-button').disabled = state.busy;
   $('hear-example').disabled = state.busy || !state.voiceEnabled || !configuration?.configured.speech;
   $('error-panel').hidden = !state.error;
@@ -315,7 +333,7 @@ function updateContextValidity(showErrors = false) {
 function validateContext() {
   const { allValid, firstInvalid } = updateContextValidity(true);
   if (!allValid) {
-    setSceneCollapsed(false);
+    setSceneOpen(true);
     setBriefMode('edit');
     firstInvalid?.focus();
   }
@@ -341,7 +359,10 @@ applyTheme(savedTheme, false);
 for (const [mode, button] of themeButtons) button?.addEventListener('click', () => applyTheme(mode));
 $('brief-mode-brief').addEventListener('click', () => setBriefMode('brief'));
 $('brief-mode-edit').addEventListener('click', () => setBriefMode('edit'));
-$('scene-toggle').addEventListener('click', () => setSceneCollapsed(!$('scene-body').classList.contains('is-collapsed')));
+$('scene-toggle').addEventListener('click', () => setSceneOpen(!sceneOpen));
+$('coach-toggle').addEventListener('click', () => setCoachOpen(!coachOpen));
+$('close-scene-button').addEventListener('click', () => { setSceneOpen(false); $('scene-toggle').focus(); });
+$('close-coach-button').addEventListener('click', () => { setCoachOpen(false); $('coach-toggle').focus(); });
 
 $('start-button').addEventListener('click', () => {
   if (!validateContext()) return;
