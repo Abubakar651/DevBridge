@@ -55,9 +55,11 @@ function renderSceneBrief() {
   const personaLabel = selectedPersona()?.label;
   const roleLabel = $('discipline').selectedOptions?.[0]?.textContent || $('discipline').value;
   const audienceLabel = $('familiarity').selectedOptions?.[0]?.textContent || $('familiarity').value;
+  const difficultyTag = selectedDifficulty()?.tag;
   if (personaLabel) chips.append(element('span', 'brief-chip', personaLabel));
   if (roleLabel) chips.append(element('span', 'brief-chip', roleLabel));
   if (audienceLabel) chips.append(element('span', 'brief-chip', audienceLabel));
+  if (difficultyTag) chips.append(element('span', 'brief-chip', difficultyTag));
 
   const factsBlock = element('div', 'brief-block');
   factsBlock.append(element('strong', '', 'Key facts'));
@@ -130,12 +132,26 @@ function selectedPersona() {
   };
 }
 
+function selectedDifficulty() {
+  const list = configuration?.difficulties || [];
+  const currentId = $('difficulty')?.value || 'standard';
+  const found = list.find(item => item.id === currentId);
+  if (found) return found;
+  const selectedLabel = $('difficulty')?.selectedOptions?.[0]?.textContent;
+  return {
+    id: currentId,
+    label: selectedLabel || 'Standard · realistic check-in',
+    tag: currentId.charAt(0).toUpperCase() + currentId.slice(1),
+  };
+}
+
 function isContextCustomized() {
   const scenario = selectedScenario();
   const defaults = scenario?.defaultContext;
   if (!scenario || !defaults) return false;
   return (
     ($('persona')?.value || scenario.personaId) !== scenario.personaId
+    || ($('difficulty')?.value || defaults.difficulty || 'standard') !== (defaults.difficulty || 'standard')
     || ($('discipline')?.value || defaults.discipline) !== defaults.discipline
     || ($('familiarity')?.value || defaults.familiarity) !== defaults.familiarity
     || ($('facts')?.value.trim() ?? defaults.knownFacts) !== defaults.knownFacts
@@ -209,6 +225,7 @@ function applyScenario(scenarioId, resetFields = true) {
 
   if (resetFields && scenario.defaultContext) {
     if ($('persona')) $('persona').value = scenario.personaId || configuration?.personas?.[0]?.id || 'vp-ops';
+    if ($('difficulty')) $('difficulty').value = scenario.defaultContext.difficulty || 'standard';
     for (const key of ['discipline', 'knownFacts', 'goal', 'familiarity']) {
       $(key === 'knownFacts' ? 'facts' : key).value = scenario.defaultContext[key];
     }
@@ -282,6 +299,14 @@ function renderFeedback(state) {
   $('feedback').append(focus);
 }
 
+const DEFAULT_CHECKLIST_DIMENSIONS = [
+  { id: 'Audience clarity', label: 'Plain language' },
+  { id: 'Structure and relevance', label: 'A clear point' },
+  { id: 'Assertiveness', label: 'Confident recommendations' },
+  { id: 'Respect', label: 'Respectful wording' },
+  { id: 'Accuracy and next steps', label: 'Facts & a next step' },
+];
+
 function renderComparison(state) {
   $('comparison').hidden = state.attempts.length < 2;
   if (state.attempts.length < 2) return;
@@ -290,6 +315,39 @@ function renderComparison(state) {
   const body = element('div', 'comparison-body');
   const fallbackFocus = previous?.feedback?.retryFocus || 'Make your core message and recommendation clear.';
   paragraph(body, '', current?.feedback?.comparison || `Your focus: ${fallbackFocus}`);
+
+  const dimensions = configuration?.checklistDimensions || DEFAULT_CHECKLIST_DIMENSIONS;
+  const prevFlagged = new Set((previous?.feedback?.improvements || []).map(item => item.dimension));
+  const currFlagged = new Set((current?.feedback?.improvements || []).map(item => item.dimension));
+  const hasCurrentFeedback = Boolean(current?.feedback);
+  const checklistGrid = element('div', 'checklist-comparison');
+  checklistGrid.id = 'checklist-comparison';
+  for (const dim of dimensions) {
+    const card = element('div', 'checklist-item');
+    const header = element('div', '');
+    header.append(
+      element('div', 'checklist-item-title', dim.id),
+      element('div', 'checklist-item-subtitle', dim.label || ''),
+    );
+    let badgeText = 'Strong ✓';
+    let badgeClass = 'checklist-badge is-strong';
+    if (hasCurrentFeedback) {
+      if (currFlagged.has(dim.id)) {
+        badgeText = 'Focus next';
+        badgeClass = 'checklist-badge is-focus';
+      } else if (prevFlagged.has(dim.id)) {
+        badgeText = 'Improved ✓';
+        badgeClass = 'checklist-badge is-improved';
+      }
+    } else if (prevFlagged.has(dim.id)) {
+      badgeText = 'Practising now';
+      badgeClass = 'checklist-badge is-focus';
+    }
+    card.append(header, element('span', badgeClass, badgeText));
+    checklistGrid.append(card);
+  }
+  body.append(checklistGrid);
+
   const columns = element('div', 'comparison-columns');
   for (const attempt of [previous, current]) {
     const column = element('div', '');
@@ -301,7 +359,12 @@ function renderComparison(state) {
 }
 
 function stateLabel(state) {
-  if (state.state === 'LISTENING') return state.recordReady ? 'Listening. Say it in your own words.' : 'Waiting for microphone permission…';
+  if (state.state === 'LISTENING') {
+    if (!state.recordReady) return 'Waiting for microphone permission…';
+    if (state.voiceActivity?.speaking) return 'Hearing you clearly — keep going.';
+    if (state.voiceActivity?.speechDetected && state.autoStopSilence) return 'Pause detected — auto-finishing in a moment, or click Done speaking.';
+    return state.autoStopSilence ? 'Listening. Speak naturally — pauses auto-finish, or click Done speaking.' : 'Listening. Click Done speaking when you finish.';
+  }
   if (state.state === 'TRANSCRIBING') return 'Turning your answer into text…';
   if (state.state === 'THINKING') return state.serverStage === 'coach' ? 'Your coach is reflecting on the conversation…' : `Your ${stakeholderProse(selectedPersona()?.label)} is thinking…`;
   if (state.state === 'SYNTHESIZING') return 'Preparing the spoken reply…';
@@ -352,7 +415,20 @@ function render(state) {
   $('finish-button').disabled = state.busy || !state.answers;
   $('stop-button').disabled = !state.busy;
   $('reset-button').disabled = !active;
-  $('mic-status').textContent = state.state === 'LISTENING' ? (state.recordReady ? 'Recording · up to 60s' : 'Requesting mic…') : 'Mic off';
+  $('mic-status').textContent = state.state === 'LISTENING'
+    ? (!state.recordReady
+      ? 'Requesting mic…'
+      : state.voiceActivity?.speaking
+        ? 'Voice detected'
+        : state.voiceActivity?.speechDetected && state.autoStopSilence
+          ? 'Pause · auto-send'
+          : (state.autoStopSilence ? 'Listening · auto-pause' : 'Recording · up to 60s'))
+    : 'Mic off';
+  $('mic-status').classList.toggle('is-speaking', state.state === 'LISTENING' && Boolean(state.voiceActivity?.speaking));
+  if ($('auto-silence')) {
+    $('auto-silence').checked = Boolean(state.autoStopSilence);
+    $('auto-silence').disabled = !configuration?.configured.groq || !recorder.supported;
+  }
   const speechConfigured = Boolean(configuration?.configured.speech);
   $('voice-enabled').disabled = !speechConfigured;
   $('voice-enabled').checked = configuration ? Boolean(state.voiceEnabled && speechConfigured) : state.voiceEnabled;
@@ -377,7 +453,13 @@ function render(state) {
   for (const chip of document.querySelectorAll('.starter-chip')) chip.disabled = !state.canSend;
   $('coach-toggle-badge').hidden = !state.feedback;
   $('retry-button').disabled = state.busy;
+  if ($('use-example-button')) $('use-example-button').disabled = state.busy || !state.feedback?.improvedMessage;
   $('hear-example').disabled = state.busy || !state.voiceEnabled || !configuration?.configured.speech;
+  if (state.state === 'ERROR' && state.lastTranscribedText && !$('answer-text').value) {
+    $('answer-text').value = state.lastTranscribedText;
+    state.lastTranscribedText = '';
+    autoResize($('answer-text'));
+  }
   $('error-panel').hidden = !state.error;
   $('error-message').textContent = state.error?.message || '';
   const nextErrorSignature = state.error ? `${state.error.code || ''}:${state.error.message || ''}` : '';
@@ -423,6 +505,15 @@ async function refreshConfiguration() {
           return opt;
         });
         $('familiarity').replaceChildren(...famOpts);
+      }
+      if ($('difficulty') && Array.isArray(configuration.difficulties)) {
+        const diffOpts = configuration.difficulties.map(item => {
+          const opt = document.createElement('option');
+          opt.value = item.id;
+          opt.textContent = item.label;
+          return opt;
+        });
+        $('difficulty').replaceChildren(...diffOpts);
       }
       contextInitialized = true;
       applyScenario(configuration.defaultContext.scenarioId, true);
@@ -498,6 +589,7 @@ function readContext() {
   return {
     scenarioId: $('scenario')?.value || configuration.scenario.id,
     personaId: $('persona')?.value || selectedScenario()?.personaId,
+    difficulty: $('difficulty')?.value || 'standard',
     discipline: $('discipline').value,
     knownFacts: $('facts').value.trim(),
     goal: $('goal').value.trim(),
@@ -511,8 +603,8 @@ for (const [input] of contextChecks) {
     syncPersonaUI();
   });
 }
-for (const id of ['discipline', 'familiarity']) {
-  $(id).addEventListener('change', () => { syncPersonaUI(); });
+for (const id of ['discipline', 'familiarity', 'difficulty']) {
+  $(id)?.addEventListener('change', () => { syncPersonaUI(); });
 }
 if ($('scenario')) {
   $('scenario').addEventListener('change', event => {
@@ -612,7 +704,18 @@ $('dismiss-voice-button').addEventListener('click', () => session.dismissVoiceEr
 $('stop-button').addEventListener('click', () => session.stop());
 $('reset-button').addEventListener('click', () => { setCoachOpen(false); session.reset(); $('answer-text').value = ''; autoResize($('answer-text')); });
 $('retry-button').addEventListener('click', () => { setCoachOpen(false); session.retry(); $('practice').scrollIntoView({ block: 'start', behavior: 'smooth' }); });
+$('use-example-button')?.addEventListener('click', async () => {
+  const draft = session.feedback?.improvedMessage?.trim() || '';
+  if (!draft || session.busy) return;
+  setCoachOpen(false);
+  await session.retry();
+  $('answer-text').value = draft;
+  autoResize($('answer-text'));
+  render(session);
+  $('answer-text').focus();
+});
 $('hear-example').addEventListener('click', () => session.hearExample());
+$('auto-silence')?.addEventListener('change', event => session.setAutoStopSilence(event.target.checked));
 $('voice-enabled').addEventListener('change', event => {
   const enabled = Boolean(event.target.checked && configuration?.configured.speech);
   event.target.checked = enabled;

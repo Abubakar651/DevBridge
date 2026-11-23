@@ -7,7 +7,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError, field_validator
 
 from .errors import AppError
-from .scenario import PERSONA_BY_ID, SCENARIO_BY_ID
+from .scenario import DIFFICULTY_BY_ID, PERSONA_BY_ID, SCENARIO_BY_ID
 
 MAX_ANSWERS = 10
 ShortText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -21,6 +21,7 @@ class Model(BaseModel):
 class Context(Model):
     scenario_id: ShortText = Field(alias="scenarioId")
     persona_id: ShortText | None = Field(default=None, alias="personaId")
+    difficulty: ShortText | None = Field(default=None)
     discipline: Literal["Software developer", "AI/ML engineer"]
     familiarity: ShortText = Field(max_length=200)
     known_facts: Annotated[str, StringConstraints(strip_whitespace=True, min_length=20, max_length=4000)] = Field(alias="knownFacts")
@@ -38,6 +39,13 @@ class Context(Model):
     def validate_persona_id(cls, value: str | None) -> str | None:
         if value is not None and value not in PERSONA_BY_ID:
             raise ValueError("Unsupported stakeholder persona.")
+        return value
+
+    @field_validator("difficulty")
+    @classmethod
+    def validate_difficulty(cls, value: str | None) -> str | None:
+        if value is not None and value not in DIFFICULTY_BY_ID:
+            raise ValueError("Unsupported stakeholder difficulty.")
         return value
 
 

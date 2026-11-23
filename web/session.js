@@ -15,6 +15,8 @@ export class PracticeSession {
   constructor({ api, recorder, player }) {
     this.api = api; this.recorder = recorder; this.player = player;
     this.listeners = new Set(); this.generation = 0; this.voiceEnabled = true;
+    this.autoStopSilence = true; this.voiceActivity = { speaking: false, speechDetected: false };
+    this.lastTranscribedText = '';
     this.snapshot = null; this.state = 'IDLE'; this.pending = null; this.error = null; this.voiceError = null;
     this.blocked = false; this.queuedAnswer = null;
   }
@@ -105,7 +107,8 @@ export class PracticeSession {
           const result = await this.api.transcribe(stage.audio, signal);
           if (!current()) return;
           if (!result.text?.trim()) { const error = new Error('No speech was transcribed. Record again or type your answer.'); error.code = 'EMPTY_TRANSCRIPT'; throw error; }
-          this.pending = { type: 'answer', text: result.text.trim(), id: crypto.randomUUID() };
+          this.lastTranscribedText = result.text.trim();
+          this.pending = { type: 'answer', text: this.lastTranscribedText, id: crypto.randomUUID() };
         } else if (stage.type === 'speak') {
           this.voiceError = null;
           if (this.voiceEnabled) {
@@ -183,16 +186,34 @@ export class PracticeSession {
   async startRecording() {
     if (!this.canAnswer) return;
     this.error = null; this.voiceError = null; this.recordReady = false;
+    this.voiceActivity = { speaking: false, speechDetected: false };
     const generation = ++this.generation;
     this.controller?.abort();
     this.setState('LISTENING');
     try {
       await this.stopping;
       if (generation !== this.generation) return;
-      await this.recorder.start(() => { if (generation === this.generation) this.finishRecording(); }, error => {
-        if (generation !== this.generation) return;
-        this.recordReady = false; this.error = { message: error.message }; this.setState('ERROR');
-      });
+      await this.recorder.start(
+        () => { if (generation === this.generation) this.finishRecording(); },
+        error => {
+          if (generation !== this.generation) return;
+          this.recordReady = false; this.voiceActivity = { speaking: false, speechDetected: false };
+          this.error = { message: error.message }; this.setState('ERROR');
+        },
+        {
+          autoStopOnSilence: this.autoStopSilence,
+          onSilence: () => { if (generation === this.generation) this.finishRecording(); },
+          onActivity: activity => {
+            if (generation !== this.generation || this.state !== 'LISTENING') return;
+            const speaking = Boolean(activity?.speaking);
+            const speechDetected = Boolean(activity?.speechDetected);
+            if (this.voiceActivity.speaking !== speaking || this.voiceActivity.speechDetected !== speechDetected) {
+              this.voiceActivity = { speaking, speechDetected };
+              this.emit();
+            }
+          },
+        },
+      );
       if (generation !== this.generation) return;
       this.recordReady = true; this.recordStartedAt = Date.now(); this.emit();
     } catch (error) {
@@ -208,6 +229,7 @@ export class PracticeSession {
   async finishRecording() {
     if (this.state !== 'LISTENING' || !this.recordReady) return;
     this.recordReady = false;
+    this.voiceActivity = { speaking: false, speechDetected: false };
     const generation = this.generation;
     this.controller?.abort();
     this.controller = new AbortController();
@@ -232,6 +254,10 @@ export class PracticeSession {
     this.pending = { type: 'speak', text: this.feedback.improvedMessage, speaker: 'Coach' };
     return this.runPending();
   }
+  setAutoStopSilence(enabled) {
+    this.autoStopSilence = Boolean(enabled);
+    this.emit();
+  }
   async setVoiceEnabled(enabled) {
     this.voiceEnabled = Boolean(enabled);
     if (!this.voiceEnabled) {
@@ -252,13 +278,15 @@ export class PracticeSession {
     this.stopping = id ? this.api.stop(id).catch(() => {}) : Promise.resolve();
     if (stoppedSpeech) this.pending = null;
     this.queuedAnswer = null; this.voiceError = null;
+    this.voiceActivity = { speaking: false, speechDetected: false };
     this.recordReady = false; this.blocked = false; this.error = null; this.state = 'IDLE'; this.emit();
   }
   reset() {
     const id = this.snapshot?.sessionId;
     this.generation++; this.controller?.abort(); this.player.stop(); this.recorder.cancel();
     this.stopping = id ? this.api.reset(id).catch(() => {}) : Promise.resolve();
-    this.queuedAnswer = null; this.voiceError = null;
+    this.queuedAnswer = null; this.voiceError = null; this.lastTranscribedText = '';
+    this.voiceActivity = { speaking: false, speechDetected: false };
     this.recordReady = false; this.blocked = false; this.error = null; this.state = 'IDLE';
     this.snapshot = null; this.pending = null; this.emit();
   }

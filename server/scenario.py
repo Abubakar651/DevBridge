@@ -72,6 +72,42 @@ FAMILIARITY_OPTIONS = [
     {"value": "Technical lead; architecture & metrics ok", "label": "Technical lead (architecture ok)"},
 ]
 
+DIFFICULTIES = {
+    "supportive": {
+        "id": "supportive",
+        "label": "Supportive · warm & guiding",
+        "tag": "Supportive",
+        "roleplayGuidance": "Be encouraging and patient. If the learner misses a key point, prompt them gently toward it and accept a clear recommendation once core facts are stated.",
+        "coachingGuidance": "Highlight encouraging progress first and frame improvements as gentle, confidence-building next steps.",
+    },
+    "standard": {
+        "id": "standard",
+        "label": "Standard · realistic check-in",
+        "tag": "Standard",
+        "roleplayGuidance": "Maintain realistic workplace expectations aligned with persona.evidenceBar and persona.pushbackTriggers without being hostile.",
+        "coachingGuidance": "Give balanced, practical workplace coaching across the 5 communication dimensions.",
+    },
+    "skeptical": {
+        "id": "skeptical",
+        "label": "Skeptical · high-scrutiny pushback",
+        "tag": "Skeptical",
+        "roleplayGuidance": "Apply high professional scrutiny (never rude or hostile). Challenge vague trade-offs, unstated operational risks, or missing decision options before agreeing to close.",
+        "coachingGuidance": "Focus on how well the explanation holds up under stakeholder pressure, scrutiny, and trade-off questioning.",
+    },
+}
+
+DIFFICULTY_BY_ID = DIFFICULTIES
+DIFFICULTY_LIST = list(DIFFICULTIES.values())
+DEFAULT_DIFFICULTY_ID = "standard"
+
+CHECKLIST_DIMENSIONS = [
+    {"id": "Audience clarity", "label": "Plain language", "description": "Useful plain language; necessary technical terms are explained."},
+    {"id": "Structure and relevance", "label": "A clear point", "description": "Outcome and business impact appear before unnecessary implementation detail."},
+    {"id": "Assertiveness", "label": "Confident recommendations", "description": "The position and recommendation are clear; uncertainty is stated when justified."},
+    {"id": "Respect", "label": "Respectful wording", "description": "Wording avoids blame, dismissiveness and assumptions about listener intelligence."},
+    {"id": "Accuracy and next steps", "label": "Facts & a next step", "description": "Facts and limits are preserved; the next action or needed decision is clear."},
+]
+
 SCENARIOS = [
     {
         "id": "churn-pitch",
@@ -320,3 +356,9 @@ def resolve_persona(scenario_id: str, persona_id: str | None = None) -> dict:
     if persona_id and persona_id in PERSONA_BY_ID:
         return PERSONA_BY_ID[persona_id]
     return PERSONA_BY_ID.get(get_scenario(scenario_id).get("personaId", ""), PERSONAS[SCENARIO["personaId"]])
+
+
+def resolve_difficulty(difficulty_id: str | None = None) -> dict:
+    if difficulty_id and difficulty_id in DIFFICULTY_BY_ID:
+        return DIFFICULTY_BY_ID[difficulty_id]
+    return DIFFICULTY_BY_ID[DEFAULT_DIFFICULTY_ID]

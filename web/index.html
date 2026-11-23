@@ -106,6 +106,10 @@
               <label for="familiarity">Audience prefers</label>
               <select id="familiarity" name="familiarity"><option value="Business-focused; prefers plain language">Plain language, business focused</option><option value="Some technical context; explain trade-offs">Some technical context</option><option value="Technical lead; architecture &amp; metrics ok">Technical lead (architecture ok)</option></select>
             </div>
+            <div class="setting-row">
+              <label for="difficulty">Stakeholder style</label>
+              <select id="difficulty" name="difficulty"><option value="supportive">Supportive · warm &amp; guiding</option><option value="standard" selected>Standard · realistic check-in</option><option value="skeptical">Skeptical · high-scrutiny pushback</option></select>
+            </div>
             <label for="facts">What do we know? <span class="label-detail">Edit the scenario facts</span></label>
             <textarea id="facts" name="facts" rows="5" minlength="20" maxlength="4000" aria-describedby="facts-error" required></textarea>
             <p class="field-error" id="facts-error" role="alert" hidden></p>
@@ -153,6 +157,7 @@
           <div class="state-row">
             <span class="status-dot" id="state-dot"></span>
             <span id="state-label" role="status">Ready when you are</span>
+            <label class="auto-silence-toggle" title="Automatically finish recording after a natural pause"><input type="checkbox" id="auto-silence" checked><span>Auto-send on pause</span></label>
             <span class="mic-pill" id="mic-status">Mic off</span>
           </div>
           <div class="voice-notice" id="voice-notice" role="status" hidden>
@@ -225,6 +230,7 @@
         <div id="feedback" aria-live="polite" hidden></div>
         <div class="feedback-actions" id="feedback-actions" hidden>
           <button class="button button-outline" type="button" id="hear-example"><svg class="icon"><use href="#i-volume"/></svg>Hear the example</button>
+          <button class="button button-outline" type="button" id="use-example-button">Retry with example draft</button>
           <button class="button button-primary" type="button" id="retry-button">Try the conversation again</button>
         </div>
       </aside>

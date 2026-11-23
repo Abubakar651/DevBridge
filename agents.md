@@ -31,16 +31,18 @@ Comprehensive engineering, architecture, and workflow reference for AI coding ag
 
 ## 2. Current Implementation Status vs. Roadmap
 
-### Currently Implemented (Phases 1 & 2)
-- **Composable personas & mix-and-match (`server/scenario.py`, `web/app.js`):**
+### Currently Implemented (Phases 1, 2 & 3 + Post-Phase-2 UX Polish)
+- **Composable personas, difficulty & mix-and-match (`server/scenario.py`, `web/app.js`):**
   - **5 stakeholder personas (`PERSONAS`):** `vp-ops`, `project-manager`, `client`, `it-manager`, `hr-representative`, each defining `priorities`, `noticesFirst`, `evidenceBar`, `openingStyle`, `pushbackTriggers`, and `coachingFocus`.
+  - **3 stakeholder pressure / difficulty levels (`DIFFICULTIES`, Phase 3 / `DEV-32`):** `supportive` (*Supportive · warm & guiding*), `standard` (*Standard · realistic check-in*), and `skeptical` (*Skeptical · high-scrutiny pushback*), injected into `ROLEPLAY_PROMPT` and `COACH_PROMPT` and selectable via `#difficulty` in **Set the scene**.
+  - **5-dimension checklist metadata & attempt comparison matrix (`CHECKLIST_DIMENSIONS`, Phase 3 / `DEV-32`, `DEV-34`):** `#comparison` renders a 5-signal checklist grid (`#checklist-comparison`) comparing `Attempt N-1` and `Attempt N` across `Audience clarity`, `Structure and relevance`, `Assertiveness`, `Respect`, and `Accuracy and next steps` (`Improved ✓`, `Strong ✓`, `Focus next`, `Practising now`), paired with `#use-example-button` (*Retry with example draft*).
   - **6 selectable scenarios (`SCENARIOS`):** `churn-pitch` (`vp-ops`, AI/ML engineer), `two-day-delay` (`project-manager`, Software developer), `client-scope-change` (`client`, Software developer), `it-ops-handoff` (`it-manager`, Software developer), `ai-ml-limits` (`it-manager`, AI/ML engineer), and `hr-contribution` (`hr-representative`, Software developer).
-  - **Independent mix-and-match & familiarity (`FAMILIARITY_OPTIONS`):** Learners can choose a preset and independently swap `#persona`, `#discipline` (`AI/ML engineer` / `Software developer`), and `#familiarity` (**Plain language, business focused**, **Some technical context**, **Technical lead (architecture ok)**) without overwriting custom `knownFacts` or `goal`.
+  - **Independent mix-and-match & familiarity (`FAMILIARITY_OPTIONS`):** Learners can choose a preset and independently swap `#persona`, `#difficulty`, `#discipline` (`AI/ML engineer` / `Software developer`), and `#familiarity` (**Plain language, business focused**, **Some technical context**, **Technical lead (architecture ok)**) without overwriting custom `knownFacts` or `goal`, displaying a `Custom mix` or `Customized` badge (`#scenario-custom-badge`).
 - **Turn budget & natural closing:** Up to **`MAX_ANSWERS = 10`** learner answers per attempt (`server/models.py`). When the learner finishes early or the stakeholder sets `RoleplayResponse.closed = True` after a learner answer, Python automatically queues `"coach"`.
-- **Backend (`server/`):** Python 3.12 + FastAPI + Uvicorn + HTTPX + Pydantic. Owns personas, scenarios, prompts, provider calls, structured-output validation, meaning-preservation guards, in-memory sessions, attempt histories, idempotency, and speech segmentation.
-- **Frontend (`web/`):** Plain HTML, CSS (Apple HIG / Liquid Glass design system with `auto` / `light` / `dark` themes), and browser ES modules. No Node runtime, no npm, no bundler.
+- **Backend (`server/`):** Python 3.12 + FastAPI + Uvicorn + HTTPX + Pydantic. Owns personas, difficulties, checklist dimensions, scenarios, prompts, provider calls, structured-output validation, meaning-preservation guards, in-memory sessions, attempt histories, idempotency, and speech segmentation.
+- **Frontend (`web/`):** Plain HTML, CSS (Apple HIG / Liquid Glass design system with `auto` / `light` / `dark` themes, unsticky mobile header `<=700px`), and browser ES modules. No Node runtime, no npm, no bundler.
 - **Voice & reasoning pipeline:**
-  1. **Capture (`web/audio.js`):** Browser `MediaRecorder` (`Record answer` / `Done speaking`, 60s / 5 MB limit) or always-open composer dock (`#answer-text`) + quick starter chips (`#starter-bar` with dynamic `starterLabels`).
+  1. **Capture & Web Audio VAD (`web/audio.js`, `web/session.js`, Phase 3 / `DEV-33`):** Browser `MediaRecorder` (`Record answer` / `Done speaking`, 60s / 5 MB limit) enhanced with Web Audio `AudioContext` + `AnalyserNode` voice-activity and post-speech silence detection (`#auto-silence` *Auto-send on pause* toggle + live `#mic-status` indicator) while retaining manual controls and recovering transcribed text (`lastTranscribedText`) on downstream errors, plus always-open composer dock (`#answer-text`) + quick starter chips (`#starter-bar` with dynamic `starterLabels`).
   2. **Transcribe (`POST /api/transcribe`):** Groq Whisper (`whisper-large-v3-turbo`).
   3. **Reason (`POST /api/practice/{id}/advance`):** 3-stage fallback chain:
      **Gemini (`gemini-3.5-flash-lite`, Interactions API, `store=false`) -> Groq (`openai/gpt-oss-20b`, Chat Completions strict schema) -> OpenRouter (`openai/gpt-oss-20b`, Chat Completions strict schema + `require_parameters: true`)**.
@@ -49,7 +51,6 @@ Comprehensive engineering, architecture, and workflow reference for AI coding ag
      *Deferred backlog task (**DEV-5** / **GH #5**):* Replace Groq Orpheus TTS with open-source `kokoro-onnx` / OpenRouter `hexgrad/kokoro-82m` / `piper-tts`.
 
 ### Planned Later Phases (from `Voice_Coach_Project_Plan.pdf`)
-- **Phase 3:** Automatic voice-activity/silence detection (retaining manual controls), checklist-based attempt comparison, difficulty settings (only after baseline coaching is consistently reliable), and qualitative pilot validation.
 - **Phase 4:** Mobile PWA (`manifest`, icons, static-shell-only service worker, offline notice, HTTPS delivery, access controls, and server usage limits).
 
 ---
@@ -195,13 +196,18 @@ Run all commands from `/home/bakar/Documents/Internships/NETSOL/Voice_Coach` usi
 - `tests/test_ui_slice2.py` — `#persona` selector, 3rd familiarity option, persona-neutral `#how-dialog`, non-destructive `web/app.js` persona wiring, dynamic `starterLabels`.
 - `tests/test_scenarios_slice3.py` — `client-scope-change` & `it-ops-handoff` registration, end-to-end persona cycles, duration & impact guards, `/api/config` order.
 - `tests/test_scenarios_slice4.py` — All 6 Phase 2 scenarios covering all 5 personas, `ai-ml-limits` & `hr-contribution` cycles + retries, AI/HR grounding guards, `/api/config` counts.
+- `tests/test_ui_ux_polish.py` — Discoverable scene triggers (`DEV-26`), coaching drawer auto-collapse (`DEV-27`), `Custom mix`/`Customized` badge (`DEV-28`), early-finish `COACH_PROMPT` & `Recorder.cancel()` fix (`DEV-29`), unsticky mobile header & stakeholder prose casing (`DEV-30`).
+- `tests/test_phase3_slice1.py` — Stakeholder difficulty levels (`DIFFICULTIES`), `CHECKLIST_DIMENSIONS`, `/api/config` exposure, `Context.difficulty` validation, and provider payload flow (`DEV-32`).
+- `tests/test_phase3_slice2.py` — Web Audio VAD pre-speech silence immunity, post-speech pause auto-finish, manual-only mode (`setAutoStopSilence(false)`), and `AudioContext` cleanup (`DEV-33`).
+- `tests/test_phase3_slice3.py` — `#difficulty`, `#auto-silence`, `#use-example-button`, and 5-signal `#checklist-comparison` matrix contract tests (`DEV-34`).
+- `tests/test_phase3_slice4.py` — 10-cycle VAD silence/retry/stop/reset durability test, multi-attempt checklist comparison flow, and `docs/PHASE_3_PILOT_VALIDATION.md` verification (`DEV-35`).
 - `tests/smoke_runtime.py` — End-to-end launcher checks for all 3 entry points.
 
 ---
 
 ## 7. Engineering Guardrails for Agents
 
-1. **GitHub & Jira workflow:** Track changes in Jira project `DEV` (`Devbridge`, grouped by `Workstream -> Task`, e.g., **DEV-20** for Phase 2 with `DEV-21`–`DEV-24` Done) and GitHub `Abubakar651/DevBridge` incrementally one task/slice at a time; never bulk-create tasks unless asked. Deferred open backlog item: **DEV-5** / **GH #5** (Orpheus TTS replacement).
+1. **GitHub & Jira workflow:** Track changes in Jira project `DEV` (`Devbridge`, grouped by `Workstream -> Task`, e.g., **DEV-20** for Phase 2, **DEV-25** for UI/UX Polish, and **DEV-31** for Phase 3) and GitHub `Abubakar651/DevBridge` incrementally one task/slice at a time; never bulk-create tasks unless asked. Deferred open backlog item: **DEV-5** / **GH #5** (Orpheus TTS replacement).
 2. **Restart the server after Python edits:** A running `run.py` process holds old `server/` modules in memory until restarted.
 3. **Never leak credentials:** Never read, print, log, or commit `.env` values or return keys to `web/`.
 4. **Never weaken grounding or UI contracts:** Keep `validate_feedback()` guards (`server/models.py`), `RoleplayResponse` question-count rules (`server/providers.py`), and `test_ui_contract.py` invariants passing.

@@ -15,7 +15,7 @@ from .config import Settings
 from .errors import AppError
 from .models import Context, Feedback, RoleplayResponse, validate_feedback
 from .prompts import COACH_PROMPT, ROLEPLAY_PROMPT
-from .scenario import resolve_persona
+from .scenario import resolve_difficulty, resolve_persona
 
 logger = logging.getLogger(__name__)
 AUDIO_EXTENSIONS = {
@@ -136,13 +136,17 @@ class Providers:
                 raise AppError(502, "The stakeholder response was incomplete. Please retry.", "INVALID_PROVIDER_OUTPUT", validation_hint="Ask exactly one short question with closed=false, or wrap up politely with zero question marks and closed=true.") from None
 
         persona = resolve_persona(context.scenario_id, context.persona_id)
+        difficulty = resolve_difficulty(context.difficulty)
         roleplay_persona = {key: persona[key] for key in ("id", "label", "priorities", "noticesFirst", "evidenceBar", "openingStyle", "pushbackTriggers")}
-        return await self.reasoning(ROLEPLAY_PROMPT, {"stakeholder": persona["label"], "persona": roleplay_persona, "context": context.model_dump(by_alias=True, exclude_none=True), "history": history}, RoleplayResponse.model_json_schema(), validate, task="roleplay")
+        roleplay_difficulty = {"id": difficulty["id"], "label": difficulty["label"], "guidance": difficulty["roleplayGuidance"]}
+        return await self.reasoning(ROLEPLAY_PROMPT, {"stakeholder": persona["label"], "persona": roleplay_persona, "difficulty": roleplay_difficulty, "context": context.model_dump(by_alias=True, exclude_none=True), "history": history}, RoleplayResponse.model_json_schema(), validate, task="roleplay")
 
     async def coach(self, context: Context, history: list[dict], previous_history: list[dict] | None = None) -> Feedback:
         persona = resolve_persona(context.scenario_id, context.persona_id)
+        difficulty = resolve_difficulty(context.difficulty)
         coach_persona = {key: persona[key] for key in ("id", "label", "priorities", "coachingFocus")}
-        return await self.reasoning(COACH_PROMPT, {"stakeholder": persona["label"], "persona": coach_persona, "context": context.model_dump(by_alias=True, exclude_none=True), "currentAttempt": history, "previousAttempt": previous_history}, Feedback.model_json_schema(), lambda value: validate_feedback(value, history, context, previous_history), task="coach")
+        coach_difficulty = {"id": difficulty["id"], "label": difficulty["label"], "guidance": difficulty["coachingGuidance"]}
+        return await self.reasoning(COACH_PROMPT, {"stakeholder": persona["label"], "persona": coach_persona, "difficulty": coach_difficulty, "context": context.model_dump(by_alias=True, exclude_none=True), "currentAttempt": history, "previousAttempt": previous_history}, Feedback.model_json_schema(), lambda value: validate_feedback(value, history, context, previous_history), task="coach")
 
     async def _chat_completion_reasoning(self, *, url: str, api_key: str, not_configured_code: str, not_configured_message: str, model: str, system: str, payload: dict, schema: dict, extra_body: dict | None = None):
         if not api_key:

@@ -12,8 +12,25 @@ const AUDIO_MIME_PRESETS = [
 ];
 
 export class Recorder {
-  constructor({ mediaDevices = globalThis.navigator?.mediaDevices, RecorderClass = globalThis.MediaRecorder } = {}) {
-    this.mediaDevices = mediaDevices; this.RecorderClass = RecorderClass; this.generation = 0;
+  constructor({
+    mediaDevices = globalThis.navigator?.mediaDevices,
+    RecorderClass = globalThis.MediaRecorder,
+    AudioContextClass = globalThis.AudioContext || globalThis.webkitAudioContext,
+    vadIntervalMs = 80,
+    speechThreshold = 0.02,
+    silenceThreshold = 0.012,
+    minSpeechMs = 240,
+    silenceDurationMs = 2200,
+  } = {}) {
+    this.mediaDevices = mediaDevices;
+    this.RecorderClass = RecorderClass;
+    this.AudioContextClass = AudioContextClass;
+    this.vadIntervalMs = vadIntervalMs;
+    this.speechThreshold = speechThreshold;
+    this.silenceThreshold = silenceThreshold;
+    this.minSpeechMs = minSpeechMs;
+    this.silenceDurationMs = silenceDurationMs;
+    this.generation = 0;
   }
   get supported() { return Boolean(this.mediaDevices?.getUserMedia && this.RecorderClass); }
   _pickMime() {
@@ -28,7 +45,80 @@ export class Recorder {
       return new this.RecorderClass(stream);
     }
   }
+  _stopVad() {
+    clearInterval(this.vadTimer);
+    this.vadTimer = null;
+    try { this.vadSource?.disconnect?.(); } catch {}
+    this.vadSource = null;
+    this.vadAnalyser = null;
+    const ctx = this.audioContext;
+    this.audioContext = null;
+    if (ctx && ctx.state !== 'closed') {
+      try { Promise.resolve(ctx.close?.()).catch(() => {}); } catch {}
+    }
+  }
+  _startVad(stream, generation, { autoStopOnSilence = true, onSilence, onActivity } = {}) {
+    this._stopVad();
+    if (typeof this.AudioContextClass !== 'function') return;
+    try {
+      const audioContext = new this.AudioContextClass();
+      this.audioContext = audioContext;
+      if (audioContext.state === 'suspended') {
+        try { Promise.resolve(audioContext.resume?.()).catch(() => {}); } catch {}
+      }
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 512;
+      source.connect(analyser);
+      this.vadSource = source;
+      this.vadAnalyser = analyser;
+      const samples = new Float32Array(analyser.fftSize || 512);
+      const bytes = new Uint8Array(analyser.fftSize || 512);
+      let speechMs = 0;
+      let silenceMs = 0;
+      let speechDetected = false;
+      let triggered = false;
+
+      this.vadTimer = setInterval(() => {
+        if (generation !== this.generation || !this.recorder || this.recorder.state !== 'recording' || triggered) return;
+        let sumSquares = 0;
+        let count = samples.length;
+        if (typeof analyser.getFloatTimeDomainData === 'function') {
+          analyser.getFloatTimeDomainData(samples);
+          for (let i = 0; i < count; i++) sumSquares += samples[i] * samples[i];
+        } else if (typeof analyser.getByteTimeDomainData === 'function') {
+          analyser.getByteTimeDomainData(bytes);
+          count = bytes.length;
+          for (let i = 0; i < count; i++) {
+            const norm = (bytes[i] - 128) / 128;
+            sumSquares += norm * norm;
+          }
+        } else {
+          return;
+        }
+        const rms = Math.sqrt(sumSquares / (count || 1));
+        const speaking = rms >= this.speechThreshold;
+        if (speaking) {
+          speechMs += this.vadIntervalMs;
+          silenceMs = 0;
+          if (speechMs >= this.minSpeechMs) speechDetected = true;
+        } else if (rms < this.silenceThreshold) {
+          if (speechDetected) silenceMs += this.vadIntervalMs;
+          else speechMs = Math.max(0, speechMs - this.vadIntervalMs);
+        }
+        onActivity?.({ rms, speaking, speechDetected, silenceMs });
+        if (autoStopOnSilence && speechDetected && silenceMs >= this.silenceDurationMs) {
+          triggered = true;
+          this._stopVad();
+          onSilence?.();
+        }
+      }, this.vadIntervalMs);
+    } catch {
+      this._stopVad();
+    }
+  }
   _cleanupRecorder(recorder) {
+    this._stopVad();
     if (recorder) {
       recorder.onstop = null;
       recorder.ondataavailable = null;
@@ -45,7 +135,7 @@ export class Recorder {
     this.mime = '';
     this.release();
   }
-  async start(onLimit, onError = () => {}) {
+  async start(onLimit, onError = () => {}, options = {}) {
     if (!this.supported) throw new Error('Recording is unavailable in this browser. Type your answer instead.');
     this.cancel();
     const generation = this.generation;
@@ -58,17 +148,27 @@ export class Recorder {
       this.recorder = recorder;
       this.mime = recorder.mimeType || mime || '';
       this.parts = []; this.size = 0; this.limitReached = false;
+      const triggerLimit = callback => {
+        if (generation !== this.generation || this.limitReached) return;
+        this.limitReached = true;
+        callback?.();
+      };
       recorder.ondataavailable = event => {
         if (generation !== this.generation || !event.data?.size) return;
         this.parts.push(event.data); this.size += event.data.size;
-        if (this.size > 5 * 1024 * 1024 && !this.limitReached) { this.limitReached = true; onLimit(); }
+        if (this.size > 5 * 1024 * 1024) triggerLimit(onLimit);
       };
       recorder.onerror = () => {
         if (generation !== this.generation) return;
         this.cancel(); onError(new Error('The microphone recording stopped unexpectedly. Please try again or type your answer.'));
       };
       recorder.start(250);
-      this.timer = setTimeout(() => { if (generation === this.generation) onLimit(); }, 60_000);
+      this.timer = setTimeout(() => triggerLimit(onLimit), 60_000);
+      this._startVad(stream, generation, {
+        autoStopOnSilence: options.autoStopOnSilence !== false,
+        onSilence: () => triggerLimit(options.onSilence || onLimit),
+        onActivity: options.onActivity,
+      });
     } catch (error) { this.cancel(); throw error; }
   }
   finish(signal) {
@@ -76,6 +176,7 @@ export class Recorder {
     if (signal?.aborted) { this.cancel(); return Promise.reject(cancelled()); }
     clearTimeout(this.timer);
     this.timer = null;
+    this._stopVad();
     return new Promise((resolve, reject) => {
       const recorder = this.recorder;
       const fallbackMime = this.mime;
