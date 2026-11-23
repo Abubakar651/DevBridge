@@ -337,6 +337,44 @@ SCENARIOS = [
             "goal": "Explain your personal contribution and practical team benefit clearly without minimizing your work or inventing unmeasured time savings.",
         },
     },
+    {
+        "id": "student-simple-model",
+        "personaId": "project-manager",
+        "title": "Explaining a simple ML model",
+        "stakeholder": "Project manager",
+        "stakeholderTag": "PM",
+        "avatar": "PM",
+        "duration": "3–5 min",
+        "maxAnswers": 10,
+        "description": "You trained a simple machine learning model to sort incoming messages into urgent or normal. How do you explain what it learned, its mistakes, and what is needed next without ML jargon?",
+        "emptyHeadline": "A calm space to explain your first ML model.",
+        "emptySubtitle": "Your project manager will ask what your model does and whether it is ready.\nSpeak or type — pause, rethink, and try again anytime.",
+        "steps": [
+            {"label": "1. What it does:", "text": "Sorts messages as urgent or normal"},
+            {"label": "2. Honest limits:", "text": "85 of 100 test cases right, live untested"},
+            {"label": "3. Next step:", "text": "1-week manual check with real data"},
+        ],
+        "starters": {
+            "full": "I trained a simple model on 500 labeled example messages to sort incoming messages as urgent or normal. On 100 test messages, it sorted 85 correctly and missed 15, and performance on live incoming messages has not been established yet. I recommend a one-week manual check on real messages before relying on it—would you approve that next step?",
+            "ready": "I trained a simple model on 500 example messages to sort incoming messages into urgent or normal.",
+            "tradeoff": "On 100 test messages it got 85 right and missed 15, and we have not tested it on live incoming messages or measured time savings yet.",
+            "recommend": "I recommend testing its suggestions alongside a one-week manual check on real messages before relying on it.",
+        },
+        "starterLabels": {
+            "full": "Use full starter draft",
+            "ready": "+ What it does",
+            "tradeoff": "+ Test limits",
+            "recommend": "+ 1-week check",
+        },
+        "placeholder": "Write your explanation here (what the model sorts, 85/100 test results & live limits, 1-week check ask)…",
+        "defaultContext": {
+            "scenarioId": "student-simple-model",
+            "discipline": "AI/ML engineer",
+            "familiarity": "Business-focused; prefers plain language",
+            "knownFacts": "I trained a simple classification model on 500 labeled example messages to sort incoming messages as urgent or normal. On 100 held-out test messages, the model sorted 85 correctly and missed 15. Performance on live incoming messages has not been established yet, and time savings have not been measured. Testing it alongside a one-week manual check on real messages is the proposed next step, and live rollout has not been approved.",
+            "goal": "Explain what your simple model does in everyday language without ML jargon, be honest about the 15 missed test messages and untested live data, and recommend a one-week manual check before relying on it.",
+        },
+    },
 ]
 
 SCENARIO_BY_ID = {item["id"]: item for item in SCENARIOS}

@@ -29,6 +29,7 @@ def test_all_six_phase2_scenarios_and_all_five_personas_are_covered():
         "it-ops-handoff",
         "ai-ml-limits",
         "hr-contribution",
+        "student-simple-model",
     ]
     assert [s["id"] for s in SCENARIOS] == expected_ids
 
@@ -38,8 +39,9 @@ def test_all_six_phase2_scenarios_and_all_five_personas_are_covered():
     html = (PROJECT_ROOT / "web" / "index.html").read_text(encoding="utf-8")
     assert '<option value="ai-ml-limits">Explaining AI/ML limits &amp; pilot</option>' in html
     assert '<option value="hr-contribution">Describing personal contribution</option>' in html
+    assert '<option value="student-simple-model">Explaining a simple ML model</option>' in html
 
-    for sid in ("ai-ml-limits", "hr-contribution"):
+    for sid in ("ai-ml-limits", "hr-contribution", "student-simple-model"):
         scenario = SCENARIO_BY_ID[sid]
         assert len(scenario["steps"]) == 3
         assert set(scenario["starters"]) == {"full", "ready", "tradeoff", "recommend"}
@@ -137,11 +139,31 @@ def test_ai_ml_limits_and_hr_contribution_grounding_guards():
         validate_feedback({**hr_base, "improvedMessage": "There are no time savings from this automation."}, [{"role": "user", "content": hr_quote}], hr_ctx)
     assert "unmeasured savings" in hr_err.value.validation_hint
 
+    st_scenario = SCENARIO_BY_ID["student-simple-model"]
+    st_ctx = Context.model_validate(st_scenario["defaultContext"])
+    st_quote = st_scenario["starters"]["ready"]
+    st_base = {
+        "strength": {"title": "Plain explanation", "quote": st_quote, "reason": "Describes what the model sorts without jargon."},
+        "improvements": [{"dimension": "Accuracy and next steps", "quote": st_quote, "reason": "Keep test mistakes and live uncertainty explicit.", "suggestion": "Ask for a one-week manual check on real messages."}],
+        "improvedMessage": st_scenario["starters"]["full"],
+        "summary": "Clear summary keeping test limits and unmeasured savings honest.",
+        "retryFocus": "Pair test numbers with the one-week manual check ask.",
+        "missingFacts": [],
+        "comparison": "",
+    }
+    assert validate_feedback(st_base, [{"role": "user", "content": st_quote}], st_ctx)
+    with pytest.raises(AppError) as st_live_err:
+        validate_feedback({**st_base, "improvedMessage": "The model is proven on live messages."}, [{"role": "user", "content": st_quote}], st_ctx)
+    assert "unestablished live AI performance" in st_live_err.value.validation_hint
+    with pytest.raises(AppError) as st_save_err:
+        validate_feedback({**st_base, "improvedMessage": "There are no time savings from using the model."}, [{"role": "user", "content": st_quote}], st_ctx)
+    assert "unmeasured savings" in st_save_err.value.validation_hint
+
 
 @pytest.mark.anyio
 async def test_config_exposes_all_six_scenarios():
     app = create_app(settings_loader=lambda: Settings(gemini_key="private-gemini"))
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://127.0.0.1") as client:
         data = (await client.get("/api/config")).json()
-    assert len(data["scenarios"]) == 6
+    assert len(data["scenarios"]) == 7
     assert len(data["personas"]) == 5
