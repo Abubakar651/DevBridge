@@ -267,6 +267,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .brand-mark i:nth-child(4) { height: 9px; }
 
 .header-scenario-pill {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
   padding: 6px 12px;
   border-radius: var(--radius-pill);
   background: var(--glass-well);
@@ -277,6 +280,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.header-scenario-pill:hover,
+.header-scenario-pill.is-active {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
 }
 
 .site-header nav { display: flex; align-items: center; gap: 18px; font-size: .88rem; }
@@ -541,6 +550,11 @@ h3 { margin: 0 0 8px; font-size: 1.12rem; line-height: 1.25; font-weight: 650; l
   font-size: .76rem;
   font-weight: 600;
 }
+.scenario-meta > .scenario-custom-badge {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  border: 1px solid var(--accent-border);
+}
 
 .scene-brief { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--hairline); }
 .brief-chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -757,6 +771,7 @@ textarea::placeholder { color: var(--muted-soft); }
 }
 .easy-start-steps strong { color: var(--accent-ink); }
 .conversation-hint { display: flex; align-items: center; gap: 6px; margin-top: 12px; color: var(--muted); font-size: .78rem; }
+.empty-scene-link { margin-top: 4px; font-size: .84rem; }
 .tiny-check { width: 16px; height: 16px; display: inline-grid; place-items: center; border: 1px solid var(--accent-border); border-radius: 50%; color: var(--accent-ink); font-size: .68rem; }
 
 .messages { display: flex; flex-direction: column; gap: 14px; margin: 0; padding: 16px 18px; list-style: none; }
@@ -1037,7 +1052,7 @@ dialog code { font-family: var(--font-mono); font-size: .86rem; overflow-wrap: a
 }
 
 @media (max-width: 700px) {
-  .site-header { flex-wrap: wrap; gap: 8px; padding: 8px 16px; }
+  .site-header { position: static; flex-wrap: wrap; gap: 8px; padding: 8px 16px; }
   .header-left { flex: 1 1 auto; }
   .site-header nav { order: 1; margin-left: auto; }
   .nav-active { display: none; }

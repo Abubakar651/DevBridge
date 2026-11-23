@@ -89,6 +89,7 @@ export class Recorder {
         fn(value);
       };
       const abort = () => {
+        recorder.onstop = null; recorder.ondataavailable = null; recorder.onerror = null;
         try { if (recorder.state !== 'inactive') recorder.stop(); } catch {}
         settle(reject, cancelled());
       };
@@ -113,13 +114,16 @@ export class Recorder {
   cancel() {
     this.generation++;
     const reject = this.rejectFinish; this.rejectFinish = null;
+    if (reject) {
+      reject();
+      return;
+    }
     const recorder = this.recorder;
     if (recorder) {
       recorder.onstop = null; recorder.ondataavailable = null; recorder.onerror = null;
       try { if (recorder.state !== 'inactive') recorder.stop(); } catch {}
     }
     this._cleanupRecorder(recorder);
-    reject?.();
   }
 }
 

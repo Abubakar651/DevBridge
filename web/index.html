@@ -30,7 +30,7 @@
   <header class="site-header">
     <div class="header-left">
       <a class="brand" href="/" aria-label="DevBridge home"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>dev<span>bridge</span><span class="brand-dot">.</span></a>
-      <span class="header-scenario-pill" id="header-scenario-pill">Customer churn pitch · VP Ops · 3–5 min</span>
+      <button class="header-scenario-pill" type="button" id="header-scenario-pill" aria-expanded="false" aria-controls="context-panel" title="Open Set the scene to switch scenario or stakeholder">Customer churn pitch · VP Ops · 3–5 min</button>
     </div>
     <nav aria-label="Main navigation">
       <span class="nav-active">Practice room</span>
@@ -85,7 +85,7 @@
             </div>
           </div>
           <p class="muted scenario-description" id="scenario-description">Four weeks in, leadership wants to see usable results. How do you explain progress and justify a 4-week CRM rollout?</p>
-          <div class="scenario-meta"><span id="scenario-stakeholder">VP of Operations</span><span id="scenario-duration">3–5 min</span></div>
+          <div class="scenario-meta"><span id="scenario-stakeholder">VP of Operations</span><span id="scenario-duration">3–5 min</span><span class="scenario-custom-badge" id="scenario-custom-badge" hidden>Custom mix</span></div>
 
           <div class="scene-brief" id="scene-brief" hidden></div>
 
@@ -144,6 +144,7 @@
               <span><strong>3. Ask:</strong> Approve rollout phase</span>
             </div>
             <div class="conversation-hint"><span class="tiny-check">✓</span> Your facts stay the same. Your explanation gets clearer.</div>
+            <button class="text-button empty-scene-link" type="button" id="empty-scene-button">Switch scenario or stakeholder</button>
           </div>
           <ol class="messages" id="messages" aria-label="Practice transcript" aria-live="polite" aria-relevant="additions text" hidden></ol>
         </div>

@@ -233,10 +233,15 @@ export class PracticeSession {
     return this.runPending();
   }
   async setVoiceEnabled(enabled) {
-    this.voiceEnabled = enabled;
-    if (!enabled) {
+    this.voiceEnabled = Boolean(enabled);
+    if (!this.voiceEnabled) {
+      const shouldAdvanceCoach = this.pending?.type === 'speak' && this.pending.nextStage === 'coach';
       this.voiceError = null;
       this._stopSpeech();
+      if (shouldAdvanceCoach) {
+        this.pending = { type: 'advance', id: crypto.randomUUID() };
+        return this.runPending();
+      }
     }
     this.emit();
   }

@@ -91,6 +91,10 @@ function setSceneOpen(open) {
   $('workspace').dataset.sceneOpen = sceneOpen ? 'true' : 'false';
   $('scene-toggle').classList.toggle('is-active', sceneOpen);
   $('scene-toggle').setAttribute('aria-expanded', sceneOpen ? 'true' : 'false');
+  if ($('header-scenario-pill')) {
+    $('header-scenario-pill').classList.toggle('is-active', sceneOpen);
+    $('header-scenario-pill').setAttribute('aria-expanded', sceneOpen ? 'true' : 'false');
+  }
   if (sceneOpen && briefMode === 'edit') {
     autoResize($('facts'), 280);
     autoResize($('goal'), 180);
@@ -126,6 +130,24 @@ function selectedPersona() {
   };
 }
 
+function isContextCustomized() {
+  const scenario = selectedScenario();
+  const defaults = scenario?.defaultContext;
+  if (!scenario || !defaults) return false;
+  return (
+    ($('persona')?.value || scenario.personaId) !== scenario.personaId
+    || ($('discipline')?.value || defaults.discipline) !== defaults.discipline
+    || ($('familiarity')?.value || defaults.familiarity) !== defaults.familiarity
+    || ($('facts')?.value.trim() ?? defaults.knownFacts) !== defaults.knownFacts
+    || ($('goal')?.value.trim() ?? defaults.goal) !== defaults.goal
+  );
+}
+
+function stakeholderProse(label) {
+  const text = (label || 'project manager').trim();
+  return /^[A-Z]{2,}\b/.test(text) ? text : text.charAt(0).toLowerCase() + text.slice(1);
+}
+
 function syncPersonaUI() {
   const scenario = selectedScenario();
   const persona = selectedPersona();
@@ -133,11 +155,21 @@ function syncPersonaUI() {
     $('header-scenario-pill').textContent = `${scenario.title} · ${persona.tag || persona.label} · ${scenario.duration}`;
   }
   if ($('scenario-stakeholder')) $('scenario-stakeholder').textContent = persona.label;
-  if ($('composer-prompt-label')) $('composer-prompt-label').textContent = `Message your ${persona.label}`;
+  if ($('scenario-custom-badge')) {
+    const customized = isContextCustomized();
+    $('scenario-custom-badge').hidden = !customized;
+    $('scenario-custom-badge').textContent = (scenario && persona.id !== scenario.personaId) ? 'Custom mix' : 'Customized';
+  }
+  if ($('scenario-description')) {
+    $('scenario-description').textContent = (scenario && persona.id !== scenario.personaId)
+      ? `Custom audience: practising ${scenario.title.toLowerCase()} with your ${stakeholderProse(persona.label)}.`
+      : (scenario?.description || '');
+  }
+  if ($('composer-prompt-label')) $('composer-prompt-label').textContent = `Message your ${stakeholderProse(persona.label)}`;
   if ($('empty-subtitle')) {
     const text = scenario?.emptySubtitle && persona.id === scenario.personaId
       ? scenario.emptySubtitle
-      : `Your ${persona.label} will start the conversation.\nSpeak or type — pause, rethink, and try again anytime.`;
+      : `Your ${stakeholderProse(persona.label)} will start the conversation.\nSpeak or type — pause, rethink, and try again anytime.`;
     const lines = text.split('\n');
     const nodes = [];
     lines.forEach((line, idx) => {
@@ -271,7 +303,7 @@ function renderComparison(state) {
 function stateLabel(state) {
   if (state.state === 'LISTENING') return state.recordReady ? 'Listening. Say it in your own words.' : 'Waiting for microphone permission…';
   if (state.state === 'TRANSCRIBING') return 'Turning your answer into text…';
-  if (state.state === 'THINKING') return state.serverStage === 'coach' ? 'Your coach is reflecting on the conversation…' : `Your ${selectedPersona()?.label || 'project manager'} is thinking…`;
+  if (state.state === 'THINKING') return state.serverStage === 'coach' ? 'Your coach is reflecting on the conversation…' : `Your ${stakeholderProse(selectedPersona()?.label)} is thinking…`;
   if (state.state === 'SYNTHESIZING') return 'Preparing the spoken reply…';
   if (state.state === 'SPEAKING') return state.blocked ? 'Your browser needs a tap to play audio.' : `${state.pending?.speaker || 'Your coach'} is speaking…`;
   if (state.state === 'ERROR') return state.answers ? 'Your accepted answers are still here.' : 'Nothing was submitted. Review the details and try again.';
@@ -303,10 +335,10 @@ function render(state) {
   const stakeholder = persona?.label || 'Project manager';
   const avatar = persona?.avatar || 'PM';
   $('attempt-label').textContent = active ? `ATTEMPT ${state.attempt.number}` : 'FIRST ATTEMPT';
-  $('partner-name').textContent = coaching ? 'Your communication coach' : `Your ${stakeholder}`;
+  $('partner-name').textContent = coaching ? 'Your communication coach' : `Your ${stakeholderProse(stakeholder)}`;
   $('partner-description').textContent = coaching ? 'Specific feedback, with your facts intact' : 'A simulated workplace conversation';
   $('partner-avatar').textContent = coaching ? 'VC' : avatar;
-  if ($('composer-prompt-label')) $('composer-prompt-label').textContent = `Message your ${stakeholder}`;
+  if ($('composer-prompt-label')) $('composer-prompt-label').textContent = `Message your ${stakeholderProse(stakeholder)}`;
   $('mode-badge').textContent = coaching ? 'COACHING' : 'ROLE-PLAY';
   $('start-button').hidden = active;
   $('start-button').disabled = !canCoachStart;
@@ -321,8 +353,9 @@ function render(state) {
   $('stop-button').disabled = !state.busy;
   $('reset-button').disabled = !active;
   $('mic-status').textContent = state.state === 'LISTENING' ? (state.recordReady ? 'Recording · up to 60s' : 'Requesting mic…') : 'Mic off';
-  $('voice-enabled').disabled = !configuration?.configured.speech;
-  $('voice-enabled').checked = state.voiceEnabled;
+  const speechConfigured = Boolean(configuration?.configured.speech);
+  $('voice-enabled').disabled = !speechConfigured;
+  $('voice-enabled').checked = configuration ? Boolean(state.voiceEnabled && speechConfigured) : state.voiceEnabled;
   $('voice-notice').hidden = !state.voiceError;
   $('voice-notice-message').textContent = state.voiceError?.message || '';
   $('retry-voice-button').disabled = state.busy;
@@ -475,11 +508,11 @@ for (const [input] of contextChecks) {
   input.addEventListener('input', () => {
     updateContextValidity(false);
     autoResize(input, input.id === 'goal' ? 180 : 280);
-    if (briefMode === 'brief') renderSceneBrief();
+    syncPersonaUI();
   });
 }
 for (const id of ['discipline', 'familiarity']) {
-  $(id).addEventListener('change', () => { if (briefMode === 'brief') renderSceneBrief(); });
+  $(id).addEventListener('change', () => { syncPersonaUI(); });
 }
 if ($('scenario')) {
   $('scenario').addEventListener('change', event => {
@@ -501,6 +534,8 @@ for (const [mode, button] of themeButtons) button?.addEventListener('click', () 
 $('brief-mode-brief').addEventListener('click', () => setBriefMode('brief'));
 $('brief-mode-edit').addEventListener('click', () => setBriefMode('edit'));
 $('scene-toggle').addEventListener('click', () => setSceneOpen(!sceneOpen));
+$('header-scenario-pill')?.addEventListener('click', () => setSceneOpen(!sceneOpen));
+$('empty-scene-button')?.addEventListener('click', () => { setSceneOpen(true); setBriefMode('edit'); $('scenario')?.focus(); });
 $('coach-toggle').addEventListener('click', () => setCoachOpen(!coachOpen));
 $('close-scene-button').addEventListener('click', () => { setSceneOpen(false); $('scene-toggle').focus(); });
 $('close-coach-button').addEventListener('click', () => { setCoachOpen(false); $('coach-toggle').focus(); });
@@ -575,10 +610,14 @@ $('retry-voice-button').addEventListener('click', () => session.retryVoice());
 $('mute-voice-button').addEventListener('click', () => session.setVoiceEnabled(false));
 $('dismiss-voice-button').addEventListener('click', () => session.dismissVoiceError());
 $('stop-button').addEventListener('click', () => session.stop());
-$('reset-button').addEventListener('click', () => { session.reset(); $('answer-text').value = ''; autoResize($('answer-text')); });
-$('retry-button').addEventListener('click', () => { session.retry(); $('practice').scrollIntoView({ block: 'start', behavior: 'smooth' }); });
+$('reset-button').addEventListener('click', () => { setCoachOpen(false); session.reset(); $('answer-text').value = ''; autoResize($('answer-text')); });
+$('retry-button').addEventListener('click', () => { setCoachOpen(false); session.retry(); $('practice').scrollIntoView({ block: 'start', behavior: 'smooth' }); });
 $('hear-example').addEventListener('click', () => session.hearExample());
-$('voice-enabled').addEventListener('change', event => session.setVoiceEnabled(event.target.checked));
+$('voice-enabled').addEventListener('change', event => {
+  const enabled = Boolean(event.target.checked && configuration?.configured.speech);
+  event.target.checked = enabled;
+  session.setVoiceEnabled(enabled);
+});
 $('how-button').addEventListener('click', () => $('how-dialog').showModal());
 for (const id of ['setup-button', 'notice-setup']) $(id).addEventListener('click', () => $('setup-dialog').showModal());
 for (const button of document.querySelectorAll('.close-dialog')) button.addEventListener('click', () => button.closest('dialog').close());
