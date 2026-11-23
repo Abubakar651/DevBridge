@@ -30,6 +30,7 @@ def test_all_six_phase2_scenarios_and_all_five_personas_are_covered():
         "ai-ml-limits",
         "hr-contribution",
         "student-simple-model",
+        "custom",
     ]
     assert [s["id"] for s in SCENARIOS] == expected_ids
 
@@ -40,6 +41,7 @@ def test_all_six_phase2_scenarios_and_all_five_personas_are_covered():
     assert '<option value="ai-ml-limits">Explaining AI/ML limits &amp; pilot</option>' in html
     assert '<option value="hr-contribution">Describing personal contribution</option>' in html
     assert '<option value="student-simple-model">Explaining a simple ML model</option>' in html
+    assert '<option value="custom">Custom scenario (write your own)</option>' in html
 
     for sid in ("ai-ml-limits", "hr-contribution", "student-simple-model"):
         scenario = SCENARIO_BY_ID[sid]
@@ -47,6 +49,18 @@ def test_all_six_phase2_scenarios_and_all_five_personas_are_covered():
         assert set(scenario["starters"]) == {"full", "ready", "tradeoff", "recommend"}
         assert set(scenario["starterLabels"]) == {"full", "ready", "tradeoff", "recommend"}
         assert Context.model_validate(scenario["defaultContext"]).scenario_id == sid
+
+    custom = SCENARIO_BY_ID["custom"]
+    assert custom["isCustom"] is True
+    assert set(custom["starterLabels"]) == {"full", "ready", "tradeoff", "recommend"}
+    custom_ctx = Context.model_validate(
+        {
+            **custom["defaultContext"],
+            "knownFacts": "I trained a YOLOv8 model to flag surface cracks on bottle caps across 400 test images.",
+            "goal": "Ask the line supervisor for a 3-day shadow trial before connecting alerts to the conveyor.",
+        }
+    )
+    assert custom_ctx.scenario_id == "custom"
 
 
 @pytest.mark.anyio
@@ -165,5 +179,5 @@ async def test_config_exposes_all_six_scenarios():
     app = create_app(settings_loader=lambda: Settings(gemini_key="private-gemini"))
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://127.0.0.1") as client:
         data = (await client.get("/api/config")).json()
-    assert len(data["scenarios"]) == 7
+    assert len(data["scenarios"]) == 8
     assert len(data["personas"]) == 5

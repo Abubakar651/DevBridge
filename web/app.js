@@ -176,6 +176,7 @@ function renderEasyStartSteps(steps) {
 
 function isFactsOrGoalCustomized() {
   const scenario = selectedScenario();
+  if (scenario?.isCustom || scenario?.id === 'custom') return true;
   const defaults = scenario?.defaultContext;
   if (!scenario || !defaults) return false;
   return (
@@ -222,7 +223,7 @@ function syncPersonaUI() {
   }
   if ($('scenario-description')) {
     $('scenario-description').textContent = customTopic
-      ? ($('goal')?.value.trim() || 'Practising your custom workplace scenario.')
+      ? ($('goal')?.value.trim() || scenario?.description || 'Write your own workplace facts and communication goal below, then click Use this scene.')
       : (scenario && persona.id !== scenario.personaId)
         ? `Custom audience: practising ${scenario.title.toLowerCase()} with your ${stakeholderProse(persona.label)}.`
         : (scenario?.description || '');
@@ -276,7 +277,7 @@ function applyScenario(scenarioId, resetFields = true) {
   }
   if (scenario.starters) {
     for (const [key, id] of [['full', 'starter-full'], ['ready', 'starter-ready'], ['tradeoff', 'starter-tradeoff'], ['recommend', 'starter-recommend']]) {
-      if ($(id) && scenario.starters[key]) $(id).dataset.starter = scenario.starters[key];
+      if ($(id)) $(id).dataset.starter = scenario.starters[key] || '';
       if ($(id) && scenario.starterLabels?.[key]) $(id).textContent = scenario.starterLabels[key];
     }
   }
@@ -672,6 +673,10 @@ if ($('scenario')) {
   $('scenario').addEventListener('change', event => {
     if (session.attempt || session.busy) return;
     applyScenario(event.target.value, true);
+    if (event.target.value === 'custom') {
+      setBriefMode('edit');
+      $('facts')?.focus();
+    }
   });
 }
 if ($('persona')) {

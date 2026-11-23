@@ -375,6 +375,45 @@ SCENARIOS = [
             "goal": "Explain what your simple model does in everyday language without ML jargon, be honest about the 15 missed test messages and untested live data, and recommend a one-week manual check before relying on it.",
         },
     },
+    {
+        "id": "custom",
+        "isCustom": True,
+        "personaId": "project-manager",
+        "title": "Custom scenario (write your own)",
+        "stakeholder": "Project manager",
+        "stakeholderTag": "PM",
+        "avatar": "PM",
+        "duration": "3–5 min",
+        "maxAnswers": 10,
+        "description": "Write your own workplace facts and communication goal below, then click Use this scene.",
+        "emptyHeadline": "A calm space to practise your custom scene.",
+        "emptySubtitle": "Fill in your scenario facts and goal in Set the scene, then start.\nSpeak or type — pause, rethink, and try again anytime.",
+        "steps": [
+            {"label": "1. Facts:", "text": "Your project details & test limits"},
+            {"label": "2. Goal:", "text": "What decision or update you need"},
+            {"label": "3. Practise:", "text": "Respond naturally to follow-ups"},
+        ],
+        "starters": {
+            "full": "",
+            "ready": "",
+            "tradeoff": "",
+            "recommend": "",
+        },
+        "starterLabels": {
+            "full": "Use full starter draft",
+            "ready": "+ Core status",
+            "tradeoff": "+ Key limits",
+            "recommend": "+ Recommendation",
+        },
+        "placeholder": "Write your explanation based on your custom facts and goal…",
+        "defaultContext": {
+            "scenarioId": "custom",
+            "discipline": "AI/ML engineer",
+            "familiarity": "Business-focused; prefers plain language",
+            "knownFacts": "",
+            "goal": "",
+        },
+    },
 ]
 
 SCENARIO_BY_ID = {item["id"]: item for item in SCENARIOS}

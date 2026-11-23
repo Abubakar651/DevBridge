@@ -99,7 +99,7 @@
           <form id="context-form">
             <div class="setting-row">
               <label for="scenario">Scenario</label>
-              <select id="scenario" name="scenario"><option value="churn-pitch">Customer churn prediction pitch</option><option value="two-day-delay">Explaining a 2-day delay</option><option value="client-scope-change">Clarifying a client scope change</option><option value="it-ops-handoff">IT handoff &amp; rollout blockers</option><option value="ai-ml-limits">Explaining AI/ML limits &amp; pilot</option><option value="hr-contribution">Describing personal contribution</option><option value="student-simple-model">Explaining a simple ML model</option></select>
+              <select id="scenario" name="scenario"><option value="churn-pitch">Customer churn prediction pitch</option><option value="two-day-delay">Explaining a 2-day delay</option><option value="client-scope-change">Clarifying a client scope change</option><option value="it-ops-handoff">IT handoff &amp; rollout blockers</option><option value="ai-ml-limits">Explaining AI/ML limits &amp; pilot</option><option value="hr-contribution">Describing personal contribution</option><option value="student-simple-model">Explaining a simple ML model</option><option value="custom">Custom scenario (write your own)</option></select>
             </div>
             <div class="setting-row">
               <label for="persona">Stakeholder persona</label>
@@ -118,10 +118,10 @@
               <select id="difficulty" name="difficulty"><option value="supportive">Supportive · warm &amp; guiding</option><option value="standard" selected>Standard · realistic check-in</option><option value="skeptical">Skeptical · high-scrutiny pushback</option></select>
             </div>
             <label for="facts">What do we know? <span class="label-detail">Edit the scenario facts</span></label>
-            <textarea id="facts" name="facts" rows="5" minlength="20" maxlength="4000" aria-describedby="facts-error" required></textarea>
+            <textarea id="facts" name="facts" rows="5" minlength="20" maxlength="4000" placeholder="Describe what you built or tested, key metrics, constraints, and what is still unmeasured or unapproved (min 20 characters)…" aria-describedby="facts-error" required></textarea>
             <p class="field-error" id="facts-error" role="alert" hidden></p>
             <label for="goal">What do you want to communicate?</label>
-            <textarea id="goal" name="goal" rows="3" minlength="10" maxlength="600" aria-describedby="goal-error" required></textarea>
+            <textarea id="goal" name="goal" rows="3" minlength="10" maxlength="600" placeholder="What decision, update, or outcome do you want to communicate to this stakeholder? (min 10 characters)…" aria-describedby="goal-error" required></textarea>
             <p class="field-error" id="goal-error" role="alert" hidden></p>
             <div class="context-actions">
               <button class="button button-small button-primary" type="button" id="apply-scene-button">Use this scene</button>
