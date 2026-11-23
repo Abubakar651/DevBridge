@@ -1,0 +1,16 @@
+[Unit]
+Description=DevBridge Workplace Communication Coach
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/devbridge
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/devbridge/.venv/bin/uvicorn server.app:app --host 127.0.0.1 --port 4317 --workers 1
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

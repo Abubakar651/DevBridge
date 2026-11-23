@@ -116,3 +116,17 @@ Useful live-check options:
 The original Miro board, generator, saved manifest describe the superseded technical-interview concept. They have not been republished. `build_voice_coach_board.py` and `miro_client.py` remain Python planning utilities.
 
 An actual board build clears existing items by default; `--keep-existing` appends. Implementation work did not run a board build.
+
+## Deploy on AWS EC2 (HTTPS + Caddy)
+
+Ready-to-use templates live in [`deploy/`](deploy/devbridge.service):
+
+- [`deploy/ec2_setup.sh`](deploy/ec2_setup.sh) — Ubuntu 24.04 bootstrap script installing Python, Git, and Caddy, setting up `/opt/devbridge/.venv`, copying `.env.example`, and registering `systemd`.
+- [`deploy/devbridge.service`](deploy/devbridge.service) — `systemd` unit running a single `--workers 1` Uvicorn process bound locally on `127.0.0.1:4317` (required because sessions live in memory).
+- [`deploy/Caddyfile`](deploy/Caddyfile) — HTTPS reverse proxy forwarding `X-Forwarded-Proto: https` (required for browser microphone access, HSTS headers, and PWA `/sw.js` registration).
+
+Set these Phase 4 variables in `/opt/devbridge/.env` (`chmod 600`) alongside your provider keys:
+
+- `ALLOWED_HOSTS=your-domain.example.com`
+- `RATE_LIMIT_PER_MINUTE=30`
+- Optional `DEMO_ACCESS_TOKEN=...` to require `X-DevBridge-Token` / `Authorization: Bearer ...` on `/api/*`.

@@ -1,0 +1,5 @@
+# Replace devbridge.example.com with your domain pointed at this EC2 Elastic IP,
+# and set ALLOWED_HOSTS to the exact same domain inside /opt/devbridge/.env.
+devbridge.example.com {
+    reverse_proxy 127.0.0.1:4317
+}
