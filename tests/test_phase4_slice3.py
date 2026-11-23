@@ -108,3 +108,44 @@ async def test_sliding_window_rate_limit_enforces_429_and_recovers_after_window(
         now += 61.0
         r4 = await client.post("/api/practice", json={"context": DEFAULT_CONTEXT, "requestId": "phase4-slice3-rate-004"})
         assert r4.status_code == 200
+
+
+@pytest.mark.anyio
+async def test_cross_site_top_level_navigation_allowed_while_cross_site_api_blocked():
+    settings = Settings(**{**TEST_SETTINGS.__dict__, "allowed_hosts": ("demo.example.com",)})
+    app = create_app(settings_loader=lambda: settings)
+
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="https://demo.example.com") as client:
+        nav = await client.get(
+            "/",
+            headers={
+                "Host": "demo.example.com",
+                "Sec-Fetch-Site": "cross-site",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Dest": "document",
+            },
+        )
+        assert nav.status_code == 200
+
+        api_nav = await client.get(
+            "/api/config",
+            headers={
+                "Host": "demo.example.com",
+                "Sec-Fetch-Site": "cross-site",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Dest": "document",
+            },
+        )
+        assert api_nav.status_code == 403
+
+        subresource = await client.get(
+            "/",
+            headers={
+                "Host": "demo.example.com",
+                "Sec-Fetch-Site": "cross-site",
+                "Sec-Fetch-Mode": "cors",
+                "Sec-Fetch-Dest": "empty",
+            },
+        )
+        assert subresource.status_code == 403
+

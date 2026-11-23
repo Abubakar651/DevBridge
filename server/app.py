@@ -107,10 +107,15 @@ class LocalMiddleware:
             expected_origins = {f"http://{host}", f"https://{host}"}
             if b"origin" in headers and headers[b"origin"].decode("latin1") not in expected_origins:
                 raise AppError(403, "Use the app from the same local address.", "INVALID_ORIGIN")
-            if headers.get(b"sec-fetch-site") == b"cross-site":
-                raise AppError(403, "Cross-site requests are not accepted.", "INVALID_ORIGIN")
-
             path = scope["path"]
+            is_top_level_navigation = (
+                scope["method"] == "GET"
+                and not path.startswith("/api/")
+                and headers.get(b"sec-fetch-mode") == b"navigate"
+                and headers.get(b"sec-fetch-dest") == b"document"
+            )
+            if headers.get(b"sec-fetch-site") == b"cross-site" and not is_top_level_navigation:
+                raise AppError(403, "Cross-site requests are not accepted.", "INVALID_ORIGIN")
             is_protected_api = path.startswith("/api/") and path != "/api/config"
             if settings.demo_access_token and is_protected_api:
                 candidate = headers.get(b"x-devbridge-token", b"").decode("latin1").strip()
