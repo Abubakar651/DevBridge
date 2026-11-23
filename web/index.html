@@ -123,7 +123,10 @@
             <label for="goal">What do you want to communicate?</label>
             <textarea id="goal" name="goal" rows="3" minlength="10" maxlength="600" aria-describedby="goal-error" required></textarea>
             <p class="field-error" id="goal-error" role="alert" hidden></p>
-            <button class="button button-small button-outline context-reset" type="button" id="reset-scene-button">Reset default scene</button>
+            <div class="context-actions">
+              <button class="button button-small button-primary" type="button" id="apply-scene-button">Use this scene</button>
+              <button class="button button-small button-outline context-reset" type="button" id="reset-scene-button">Reset default scene</button>
+            </div>
           </form>
           <p class="context-footnote" id="context-note">Your coach will use these facts. Keep them specific.</p>
         </div>

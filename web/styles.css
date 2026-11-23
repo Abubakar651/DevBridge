@@ -650,7 +650,9 @@ textarea::placeholder { color: var(--muted-soft); }
   font-weight: 550;
   line-height: 1.4;
 }
-.context-reset { width: 100%; margin-top: 12px; }
+.context-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.context-actions .button { width: 100%; }
+.context-reset { width: 100%; margin-top: 0; }
 .context-footnote { margin: 12px 0 0; color: var(--muted); font-size: .78rem; line-height: 1.45; }
 
 /* Center Stage: Practice Conversation */

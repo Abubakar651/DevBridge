@@ -158,6 +158,32 @@ function selectedDifficulty() {
   };
 }
 
+const CUSTOM_SCENE_STEPS = [
+  { label: '1. Outcome:', text: 'State what you built or changed' },
+  { label: '2. Limits:', text: 'Share constraints & honest boundaries' },
+  { label: '3. Ask:', text: 'Give your recommendation & next step' },
+];
+
+function renderEasyStartSteps(steps) {
+  if (!$('easy-start-steps') || !Array.isArray(steps)) return;
+  const stepNodes = steps.map(step => {
+    const span = document.createElement('span');
+    span.append(element('strong', '', step.label), ` ${step.text}`);
+    return span;
+  });
+  $('easy-start-steps').replaceChildren(...stepNodes);
+}
+
+function isFactsOrGoalCustomized() {
+  const scenario = selectedScenario();
+  const defaults = scenario?.defaultContext;
+  if (!scenario || !defaults) return false;
+  return (
+    ($('facts')?.value.trim() ?? defaults.knownFacts) !== defaults.knownFacts
+    || ($('goal')?.value.trim() ?? defaults.goal) !== defaults.goal
+  );
+}
+
 function isContextCustomized() {
   const scenario = selectedScenario();
   const defaults = scenario?.defaultContext;
@@ -167,8 +193,7 @@ function isContextCustomized() {
     || ($('difficulty')?.value || defaults.difficulty || 'standard') !== (defaults.difficulty || 'standard')
     || ($('discipline')?.value || defaults.discipline) !== defaults.discipline
     || ($('familiarity')?.value || defaults.familiarity) !== defaults.familiarity
-    || ($('facts')?.value.trim() ?? defaults.knownFacts) !== defaults.knownFacts
-    || ($('goal')?.value.trim() ?? defaults.goal) !== defaults.goal
+    || isFactsOrGoalCustomized()
   );
 }
 
@@ -180,8 +205,11 @@ function stakeholderProse(label) {
 function syncPersonaUI() {
   const scenario = selectedScenario();
   const persona = selectedPersona();
+  const customTopic = isFactsOrGoalCustomized();
   if ($('header-scenario-pill') && scenario) {
-    $('header-scenario-pill').textContent = `${scenario.title} · ${persona.tag || persona.label} · ${scenario.duration}`;
+    $('header-scenario-pill').textContent = customTopic
+      ? `Custom scenario · ${persona.tag || persona.label} · ${scenario.duration}`
+      : `${scenario.title} · ${persona.tag || persona.label} · ${scenario.duration}`;
   }
   if ($('scenario-stakeholder')) $('scenario-stakeholder').textContent = persona.label;
   if ($('scenario-custom-badge')) {
@@ -189,16 +217,28 @@ function syncPersonaUI() {
     $('scenario-custom-badge').hidden = !customized;
     $('scenario-custom-badge').textContent = (scenario && persona.id !== scenario.personaId) ? 'Custom mix' : 'Customized';
   }
+  if ($('scenario-title') && scenario) {
+    $('scenario-title').textContent = customTopic ? 'Custom practice scenario' : scenario.title;
+  }
   if ($('scenario-description')) {
-    $('scenario-description').textContent = (scenario && persona.id !== scenario.personaId)
-      ? `Custom audience: practising ${scenario.title.toLowerCase()} with your ${stakeholderProse(persona.label)}.`
-      : (scenario?.description || '');
+    $('scenario-description').textContent = customTopic
+      ? ($('goal')?.value.trim() || 'Practising your custom workplace scenario.')
+      : (scenario && persona.id !== scenario.personaId)
+        ? `Custom audience: practising ${scenario.title.toLowerCase()} with your ${stakeholderProse(persona.label)}.`
+        : (scenario?.description || '');
+  }
+  if ($('empty-headline') && scenario) {
+    $('empty-headline').textContent = customTopic
+      ? 'A calm space to practise your custom scene.'
+      : (scenario.emptyHeadline || 'A calm space to practise.');
   }
   if ($('composer-prompt-label')) $('composer-prompt-label').textContent = `Message your ${stakeholderProse(persona.label)}`;
   if ($('empty-subtitle')) {
-    const text = scenario?.emptySubtitle && persona.id === scenario.personaId
-      ? scenario.emptySubtitle
-      : `Your ${stakeholderProse(persona.label)} will start the conversation.\nSpeak or type — pause, rethink, and try again anytime.`;
+    const text = customTopic
+      ? `Your ${stakeholderProse(persona.label)} will open based on your custom facts and goal.\nSpeak or type — pause, rethink, and try again anytime.`
+      : (scenario?.emptySubtitle && persona.id === scenario.personaId
+        ? scenario.emptySubtitle
+        : `Your ${stakeholderProse(persona.label)} will start the conversation.\nSpeak or type — pause, rethink, and try again anytime.`);
     const lines = text.split('\n');
     const nodes = [];
     lines.forEach((line, idx) => {
@@ -206,6 +246,12 @@ function syncPersonaUI() {
       nodes.push(document.createTextNode(line));
     });
     $('empty-subtitle').replaceChildren(...nodes);
+  }
+  renderEasyStartSteps(customTopic ? CUSTOM_SCENE_STEPS : scenario?.steps);
+  if ($('answer-text')) {
+    $('answer-text').placeholder = customTopic
+      ? `Write your explanation for your ${stakeholderProse(persona.label)} based on your custom facts and goal…`
+      : (scenario?.placeholder || '');
   }
   if (briefMode === 'brief') renderSceneBrief();
   render(session);
@@ -465,7 +511,7 @@ function render(state) {
           : state.canSend
             ? (state.state === 'SPEAKING' || state.state === 'SYNTHESIZING' ? 'Your words. Sending interrupts audio.' : 'Your words. No perfect script needed.')
             : (state.pending && !state.busy ? 'Practice paused — click Continue practice to resume.' : 'Wait until the current step finishes.');
-  $('starter-bar').hidden = !active || Boolean(state.feedback);
+  $('starter-bar').hidden = !active || Boolean(state.feedback) || isFactsOrGoalCustomized();
   for (const chip of document.querySelectorAll('.starter-chip')) chip.disabled = !state.canSend;
   $('coach-toggle-badge').hidden = !state.feedback;
   $('retry-button').disabled = state.busy || isOffline;
@@ -651,6 +697,14 @@ $('close-coach-button').addEventListener('click', () => { setCoachOpen(false); $
 $('start-button').addEventListener('click', () => {
   if (!validateContext()) return;
   session.start(readContext());
+});
+$('apply-scene-button')?.addEventListener('click', () => {
+  if (session.attempt || session.busy) return;
+  if (!validateContext()) return;
+  syncPersonaUI();
+  setSceneOpen(false);
+  $('practice')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  ($('start-button')?.hidden ? $('answer-text') : $('start-button'))?.focus();
 });
 $('reset-scene-button').addEventListener('click', () => {
   if (session.attempt || session.busy) return;

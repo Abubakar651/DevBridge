@@ -101,10 +101,10 @@ class Providers:
         except httpx.RequestError:
             raise AppError(502, "Could not reach the provider. Check the connection and retry this step.", "PROVIDER_NETWORK") from None
 
-    async def gemini(self, system: str, payload: dict, schema: dict):
+    async def gemini(self, system: str, payload: dict, schema: dict, *, temperature: float = 0.4):
         if not self.settings.gemini_key:
             raise AppError(503, "Gemini is not configured yet. Add its API key on the server, then refresh this page.", "GEMINI_NOT_CONFIGURED")
-        generation = {"temperature": 0.4, "max_output_tokens": 4096}
+        generation = {"temperature": temperature, "max_output_tokens": 4096}
         if re.match(r"^gemini-[34]", self.settings.gemini_model):
             generation.update(thinking_level="low", thinking_summaries="none")
         data = await self.request(
@@ -139,23 +139,23 @@ class Providers:
         difficulty = resolve_difficulty(context.difficulty)
         roleplay_persona = {key: persona[key] for key in ("id", "label", "priorities", "noticesFirst", "evidenceBar", "openingStyle", "pushbackTriggers")}
         roleplay_difficulty = {"id": difficulty["id"], "label": difficulty["label"], "guidance": difficulty["roleplayGuidance"]}
-        return await self.reasoning(ROLEPLAY_PROMPT, {"stakeholder": persona["label"], "persona": roleplay_persona, "difficulty": roleplay_difficulty, "context": context.model_dump(by_alias=True, exclude_none=True), "history": history}, RoleplayResponse.model_json_schema(), validate, task="roleplay")
+        return await self.reasoning(ROLEPLAY_PROMPT, {"stakeholder": persona["label"], "persona": roleplay_persona, "difficulty": roleplay_difficulty, "context": context.model_dump(by_alias=True, exclude_none=True), "history": history}, RoleplayResponse.model_json_schema(), validate, task="roleplay", temperature=0.7)
 
     async def coach(self, context: Context, history: list[dict], previous_history: list[dict] | None = None) -> Feedback:
         persona = resolve_persona(context.scenario_id, context.persona_id)
         difficulty = resolve_difficulty(context.difficulty)
         coach_persona = {key: persona[key] for key in ("id", "label", "priorities", "coachingFocus")}
         coach_difficulty = {"id": difficulty["id"], "label": difficulty["label"], "guidance": difficulty["coachingGuidance"]}
-        return await self.reasoning(COACH_PROMPT, {"stakeholder": persona["label"], "persona": coach_persona, "difficulty": coach_difficulty, "context": context.model_dump(by_alias=True, exclude_none=True), "currentAttempt": history, "previousAttempt": previous_history}, Feedback.model_json_schema(), lambda value: validate_feedback(value, history, context, previous_history), task="coach")
+        return await self.reasoning(COACH_PROMPT, {"stakeholder": persona["label"], "persona": coach_persona, "difficulty": coach_difficulty, "context": context.model_dump(by_alias=True, exclude_none=True), "currentAttempt": history, "previousAttempt": previous_history}, Feedback.model_json_schema(), lambda value: validate_feedback(value, history, context, previous_history), task="coach", temperature=0.4)
 
-    async def _chat_completion_reasoning(self, *, url: str, api_key: str, not_configured_code: str, not_configured_message: str, model: str, system: str, payload: dict, schema: dict, extra_body: dict | None = None):
+    async def _chat_completion_reasoning(self, *, url: str, api_key: str, not_configured_code: str, not_configured_message: str, model: str, system: str, payload: dict, schema: dict, temperature: float = 0.4, extra_body: dict | None = None):
         if not api_key:
             raise AppError(503, not_configured_message, not_configured_code)
         body = {
             "model": model,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": json.dumps(payload)}],
             "response_format": {"type": "json_schema", "json_schema": {"name": "voice_coach", "strict": True, "schema": schema}},
-            "reasoning_effort": "medium", "temperature": 0.4, "max_completion_tokens": 4096,
+            "reasoning_effort": "medium", "temperature": temperature, "max_completion_tokens": 4096,
             **(extra_body or {}),
         }
         data = await self.request("POST", url, headers={"Authorization": f"Bearer {api_key}"}, json=body)
@@ -169,31 +169,31 @@ class Providers:
             logger.warning("Unreadable chat completion output from provider=%r.", data.get("provider") if isinstance(data, dict) else None)
             raise AppError(502, "The backup model did not finish a readable response. Please retry this step.", "INVALID_PROVIDER_OUTPUT") from None
 
-    async def groq_reasoning(self, system: str, payload: dict, schema: dict):
+    async def groq_reasoning(self, system: str, payload: dict, schema: dict, *, temperature: float = 0.4):
         return await self._chat_completion_reasoning(
             url="https://api.groq.com/openai/v1/chat/completions",
             api_key=self.settings.groq_key,
             not_configured_code="GROQ_NOT_CONFIGURED",
             not_configured_message="The backup coach is not configured. Add a Groq API key on the server.",
             model=self.settings.groq_reasoning_model,
-            system=system, payload=payload, schema=schema,
+            system=system, payload=payload, schema=schema, temperature=temperature,
         )
 
-    async def openrouter_reasoning(self, system: str, payload: dict, schema: dict):
+    async def openrouter_reasoning(self, system: str, payload: dict, schema: dict, *, temperature: float = 0.4):
         return await self._chat_completion_reasoning(
             url="https://openrouter.ai/api/v1/chat/completions",
             api_key=self.settings.openrouter_key,
             not_configured_code="OPENROUTER_NOT_CONFIGURED",
             not_configured_message="OpenRouter is not configured. Add an OpenRouter API key on the server.",
             model=self.settings.openrouter_model,
-            system=system, payload=payload, schema=schema,
+            system=system, payload=payload, schema=schema, temperature=temperature,
             extra_body={"provider": {"require_parameters": True}},
         )
 
-    async def _run_backup_with_retry(self, provider_name: str, caller, system: str, payload: dict, schema: dict, validate, *, task: str):
+    async def _run_backup_with_retry(self, provider_name: str, caller, system: str, payload: dict, schema: dict, validate, *, task: str, temperature: float = 0.4):
         for attempt in range(2):
             try:
-                return validate(await caller(system, payload, schema))
+                return validate(await caller(system, payload, schema, temperature=temperature))
             except AppError as backup_error:
                 if backup_error.code != "INVALID_PROVIDER_OUTPUT" or attempt == 1:
                     raise
@@ -205,11 +205,11 @@ class Providers:
                     self.diagnostic(event)
                 system += "\nSERVER VALIDATION: Your previous response was rejected. " + hint + " Regenerate from the original context and transcript. Copy evidence exactly, including punctuation. Keep existing readiness, timing and approval authority unchanged. Do not introduce an unprovided sprint, cycle, iteration, release, week, benefit or commitment."
 
-    async def reasoning(self, system, payload, schema, validate, *, task):
+    async def reasoning(self, system, payload, schema, validate, *, task, temperature: float = 0.4):
         """Use the same inputs and validators across Gemini, Groq, and OpenRouter; cancellation never falls back."""
         selected, model = "gemini", self.settings.gemini_model
         try:
-            result = validate(await self.gemini(system, payload, schema))
+            result = validate(await self.gemini(system, payload, schema, temperature=temperature))
         except AppError as error:
             backups = []
             if self.settings.groq_key:
@@ -228,7 +228,7 @@ class Providers:
                 logger.warning("%s failed (%s); using %s %s for %s.", previous_provider.capitalize(), current_error.code, backup_name, backup_model, task)
                 selected, model = backup_name, backup_model
                 try:
-                    result = await self._run_backup_with_retry(backup_name, caller, system, payload, schema, validate, task=task)
+                    result = await self._run_backup_with_retry(backup_name, caller, system, payload, schema, validate, task=task, temperature=temperature)
                     break
                 except AppError as backup_error:
                     if index + 1 == len(backups):

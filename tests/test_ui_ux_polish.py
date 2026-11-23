@@ -241,5 +241,32 @@ def test_mobile_only_isolated_collapsible_quick_starters():
     assert "setMobileStartersOpen(false);" in app
 
 
+def test_custom_scenario_apply_button_dynamic_ui_and_unscripted_roleplay():
+    html = source("web/index.html")
+    app = source("web/app.js")
+    prompts = source("server/prompts.py")
+    providers = source("server/providers.py")
+
+    apply_match = re.search(r'<button\b[^>]*id="apply-scene-button"[^>]*>', html)
+    assert apply_match, "Expected #apply-scene-button in web/index.html"
+    assert 'type="button"' in apply_match.group(0)
+    assert "Use this scene" in html
+
+    for token in (
+        "function isFactsOrGoalCustomized()",
+        "CUSTOM_SCENE_STEPS",
+        "'Custom practice scenario'",
+        "'A calm space to practise your custom scene.'",
+        "$('apply-scene-button')?.addEventListener('click'",
+        "setSceneOpen(false);",
+        "isFactsOrGoalCustomized()",
+    ):
+        assert token in app, f"Missing {token} in web/app.js"
+
+    assert "vary your wording naturally rather than using a fixed script" in prompts
+    assert "temperature=0.7" in providers
+
+
+
 
 
