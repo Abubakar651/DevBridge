@@ -1,0 +1,27 @@
+{
+  "id": "/",
+  "name": "DevBridge · Workplace Communication Coach",
+  "short_name": "DevBridge",
+  "description": "Practise explaining technical work, constraints, AI/ML limits, and recommendations clearly, confidently, and respectfully.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f5f5f7",
+  "theme_color": "#007aff",
+  "categories": ["education", "productivity", "business"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

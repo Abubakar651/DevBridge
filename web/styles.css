@@ -853,6 +853,7 @@ textarea::placeholder { color: var(--muted-soft); }
   line-height: 1.45;
 }
 .voice-notice-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.offline-notice { border-color: var(--amber-border); background: var(--amber-soft); }
 
 .starter-bar {
   margin-bottom: 10px;

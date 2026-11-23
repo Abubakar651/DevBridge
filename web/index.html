@@ -9,6 +9,12 @@
   <meta name="description" content="Practise explaining your work clearly, confidently and respectfully with DevBridge.">
   <title>DevBridge · Practice room</title>
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icon-maskable.svg">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="DevBridge">
   <link rel="stylesheet" href="/styles.css">
   <script type="module" src="/app.js"></script>
 </head>
@@ -60,6 +66,7 @@
     </div>
     <div id="configuration-notice" class="notice" role="status" hidden><span id="configuration-message"></span><button class="text-button" type="button" id="notice-setup">View setup</button></div>
     <div id="test-notice" class="notice" role="status" hidden>Test preview · Responses are scripted for verification. This is not a live AI session.</div>
+    <div id="offline-notice" class="notice offline-notice" role="status" hidden><span>You’re offline. The app shell is available, but live role-play, transcription, and voice replies require a connection.</span><button class="text-button" type="button" id="offline-retry-button">Reconnect</button></div>
     <div id="error-panel" class="error-panel" role="alert" tabindex="-1" hidden><div><strong>This step needs another try.</strong><p id="error-message"></p></div><button class="button button-small button-outline" type="button" id="recover-button">Try again</button></div>
 
     <div class="workspace" id="workspace" data-scene-open="false" data-coach-open="false">

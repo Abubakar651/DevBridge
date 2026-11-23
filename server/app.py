@@ -14,9 +14,15 @@ if __name__ == "__main__" and not __package__:
     raise SystemExit(0)
 
 import asyncio
+from collections import deque
+import hmac
 import logging
+import mimetypes
+import time
 from typing import Annotated
 from urllib.parse import urlsplit
+
+mimetypes.add_type("application/manifest+json", ".webmanifest")
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -62,20 +68,26 @@ def error_response(error: AppError):
 
 
 class LocalMiddleware:
-    def __init__(self, app, settings_loader):
+    def __init__(self, app, settings_loader, *, clock=time.monotonic):
         self.app = app
         self.settings_loader = settings_loader
+        self.clock = clock
+        self._rate_buckets: dict[str, deque[float]] = {}
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
         headers = dict(scope["headers"])
         host = headers.get(b"host", b"").decode("latin1")
+        forwarded_proto = headers.get(b"x-forwarded-proto", b"").decode("latin1").split(",")[0].strip().lower()
+        is_https = scope.get("scheme") == "https" or forwarded_proto == "https"
         security_headers = {
             "cache-control": "no-store", "x-content-type-options": "nosniff", "referrer-policy": "no-referrer",
             "permissions-policy": "microphone=(self), camera=()",
             "content-security-policy": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
         }
+        if is_https:
+            security_headers["strict-transport-security"] = "max-age=31536000; includeSubDomains"
 
         async def secure_send(message):
             if message["type"] == "http.response.start":
@@ -89,14 +101,41 @@ class LocalMiddleware:
                 logger.exception("Failed to load server settings.")
                 raise AppError(500, "Server configuration is invalid. Check .env settings and try again.", "CONFIGURATION_ERROR") from None
             parsed = urlsplit("http://" + host)
-            if not host or parsed.hostname not in {"localhost", "127.0.0.1", "::1", settings.host} or parsed.username or parsed.password:
+            allowed_hosts = {"localhost", "127.0.0.1", "::1", settings.host.lower(), *settings.allowed_hosts}
+            if not host or (parsed.hostname or "").lower() not in allowed_hosts or parsed.username or parsed.password:
                 raise AppError(403, "Use this app from its local server address.", "INVALID_ORIGIN")
-            expected_origin = "http://" + host
-            if b"origin" in headers and headers[b"origin"].decode("latin1") != expected_origin:
+            expected_origins = {f"http://{host}", f"https://{host}"}
+            if b"origin" in headers and headers[b"origin"].decode("latin1") not in expected_origins:
                 raise AppError(403, "Use the app from the same local address.", "INVALID_ORIGIN")
             if headers.get(b"sec-fetch-site") == b"cross-site":
                 raise AppError(403, "Cross-site requests are not accepted.", "INVALID_ORIGIN")
-            limit = MAX_AUDIO if scope["path"] == "/api/transcribe" else 64 * 1024
+
+            path = scope["path"]
+            is_protected_api = path.startswith("/api/") and path != "/api/config"
+            if settings.demo_access_token and is_protected_api:
+                candidate = headers.get(b"x-devbridge-token", b"").decode("latin1").strip()
+                if not candidate:
+                    auth_header = headers.get(b"authorization", b"").decode("latin1").strip()
+                    if auth_header.lower().startswith("bearer "):
+                        candidate = auth_header[7:].strip()
+                if not candidate or not hmac.compare_digest(candidate, settings.demo_access_token):
+                    raise AppError(401, "An access token is required to use this shared demo.", "ACCESS_REQUIRED")
+
+            if settings.rate_limit_per_minute > 0 and is_protected_api:
+                client_ip = (scope.get("client") or ("local", 0))[0] or "local"
+                now = self.clock()
+                cutoff = now - 60.0
+                bucket = self._rate_buckets.setdefault(client_ip, deque())
+                while bucket and bucket[0] <= cutoff:
+                    bucket.popleft()
+                if len(bucket) >= settings.rate_limit_per_minute:
+                    raise AppError(429, "Too many requests for this demo window. Wait a moment and retry.", "RATE_LIMITED")
+                bucket.append(now)
+                if len(self._rate_buckets) > 1000:
+                    for key in [k for k, items in self._rate_buckets.items() if not items or items[-1] <= cutoff]:
+                        self._rate_buckets.pop(key, None)
+
+            limit = MAX_AUDIO if path == "/api/transcribe" else 64 * 1024
             content_length = int(headers.get(b"content-length", b"0"))
             if content_length < 0:
                 raise AppError(400, "Invalid Content-Length header.", "INVALID_INPUT")
@@ -162,11 +201,11 @@ async def cancellable(request: Request, coroutine):
         await asyncio.gather(task, watcher, return_exceptions=True)
 
 
-def create_app(*, settings_loader=load_settings, provider_factory=Providers, store=None, mode="live"):
+def create_app(*, settings_loader=load_settings, provider_factory=Providers, store=None, mode="live", clock=time.monotonic):
     app = FastAPI(title="DevBridge", docs_url=None, redoc_url=None, openapi_url=None)
     practices = store or PracticeStore()
     app.state.practices = practices
-    app.add_middleware(LocalMiddleware, settings_loader=settings_loader)
+    app.add_middleware(LocalMiddleware, settings_loader=settings_loader, clock=clock)
 
     @app.exception_handler(AppError)
     async def app_error(_request, error):
@@ -198,7 +237,7 @@ def create_app(*, settings_loader=load_settings, provider_factory=Providers, sto
     async def configuration():
         practices.prune()
         settings = settings_loader()
-        return {"mode": mode, "configured": {"gemini": bool(settings.gemini_key), "groq": bool(settings.groq_key), "coaching": bool(settings.gemini_key or settings.groq_key or settings.openrouter_key), "speech": bool(settings.groq_voice_key or settings.groq_key)}, "scenario": SCENARIO, "scenarios": SCENARIOS, "personas": PERSONA_LIST, "familiarityOptions": FAMILIARITY_OPTIONS, "difficulties": DIFFICULTY_LIST, "checklistDimensions": CHECKLIST_DIMENSIONS, "defaultContext": DEFAULT_CONTEXT, "maxAnswers": MAX_ANSWERS, "maxRecordingSeconds": 60}
+        return {"mode": mode, "configured": {"gemini": bool(settings.gemini_key), "groq": bool(settings.groq_key), "coaching": bool(settings.gemini_key or settings.groq_key or settings.openrouter_key), "speech": bool(settings.groq_voice_key or settings.groq_key)}, "accessRequired": bool(settings.demo_access_token), "rateLimitPerMinute": settings.rate_limit_per_minute, "scenario": SCENARIO, "scenarios": SCENARIOS, "personas": PERSONA_LIST, "familiarityOptions": FAMILIARITY_OPTIONS, "difficulties": DIFFICULTY_LIST, "checklistDimensions": CHECKLIST_DIMENSIONS, "defaultContext": DEFAULT_CONTEXT, "maxAnswers": MAX_ANSWERS, "maxRecordingSeconds": 60}
 
     @app.post("/api/practice")
     async def start(body: StartRequest):

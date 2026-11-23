@@ -13,6 +13,7 @@ let messageSignature = '';
 let feedbackSignature = '';
 let errorSignature = '';
 let configError = '';
+let isOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
 let contextInitialized = false;
 let briefMode = 'edit';
 let sceneOpen = false;
@@ -47,6 +48,18 @@ function applyTheme(theme, persist = true) {
   }
   if (persist) {
     try { localStorage.setItem(THEME_KEY, mode); } catch { /* ignore storage errors */ }
+  }
+}
+
+function syncOfflineUI() {
+  isOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+  if ($('offline-notice')) $('offline-notice').hidden = !isOffline;
+  if (isOffline) {
+    if ($('setup-badge-label')) $('setup-badge-label').textContent = 'Offline';
+    if ($('setup-dot')) {
+      $('setup-dot').classList.add('is-offline');
+      $('setup-dot').classList.remove('is-warn');
+    }
   }
 }
 
@@ -377,11 +390,12 @@ function stateLabel(state) {
 }
 
 function render(state) {
+  syncOfflineUI();
   document.body.dataset.state = state.state;
   $('practice').setAttribute('aria-busy', state.busy ? 'true' : 'false');
   const active = Boolean(state.attempt);
   const coaching = Boolean(state.feedback) || (state.serverStage === 'coach' && state.state === 'THINKING');
-  const canCoachStart = Boolean(configuration?.configured.coaching);
+  const canCoachStart = Boolean(configuration?.configured.coaching) && !isOffline;
   const maxAnswers = configuration?.maxAnswers || 10;
   $('state-label').textContent = stateLabel(state);
   $('turn-count').textContent = `${state.answers} / ${maxAnswers} answers`;
@@ -406,13 +420,13 @@ function render(state) {
   $('start-button').hidden = active;
   $('start-button').disabled = !canCoachStart;
   $('record-button').hidden = !active || Boolean(state.feedback) || state.state === 'LISTENING';
-  $('record-button').disabled = !state.canAnswer || !configuration?.configured.groq || !recorder.supported;
+  $('record-button').disabled = !state.canAnswer || !configuration?.configured.groq || !recorder.supported || isOffline;
   $('done-button').hidden = state.state !== 'LISTENING';
   $('done-button').disabled = !state.recordReady;
   $('play-button').hidden = !state.blocked;
   $('continue-button').hidden = !state.pending || state.busy || state.state === 'ERROR';
   $('finish-button').hidden = !active || Boolean(state.feedback) || state.serverStage === 'coach';
-  $('finish-button').disabled = state.busy || !state.answers;
+  $('finish-button').disabled = state.busy || !state.answers || isOffline;
   $('stop-button').disabled = !state.busy;
   $('reset-button').disabled = !active;
   $('mic-status').textContent = state.state === 'LISTENING'
@@ -439,20 +453,22 @@ function render(state) {
   $('send-button').hidden = Boolean(state.feedback);
   $('coaching-dock-note').hidden = !state.feedback || state.blocked || Boolean(state.pending && !state.busy && state.state !== 'ERROR');
   $('answer-text').disabled = !state.canType || (!active && !canCoachStart);
-  $('send-button').disabled = !state.canSend || (!active && !canCoachStart) || !$('answer-text').value.trim();
-  $('answer-hint').textContent = !canCoachStart
-    ? 'Connect Gemini or Groq in Practice setup to chat.'
-    : !active
-      ? 'Write an update and press Send to begin, or click Start practice.'
-      : state.state === 'ERROR'
-        ? (state.queuedAnswer ? 'Your draft is saved — click Retry above to submit it.' : 'This step needs another try — use the retry button in the banner above.')
-        : state.canSend
-          ? (state.state === 'SPEAKING' || state.state === 'SYNTHESIZING' ? 'Your words. Sending interrupts audio.' : 'Your words. No perfect script needed.')
-          : (state.pending && !state.busy ? 'Practice paused — click Continue practice to resume.' : 'Wait until the current step finishes.');
+  $('send-button').disabled = !state.canSend || (!active && !canCoachStart) || !$('answer-text').value.trim() || isOffline;
+  $('answer-hint').textContent = isOffline
+    ? 'You’re offline. Reconnect to continue live practice.'
+    : !canCoachStart
+      ? 'Connect Gemini or Groq in Practice setup to chat.'
+      : !active
+        ? 'Write an update and press Send to begin, or click Start practice.'
+        : state.state === 'ERROR'
+          ? (state.queuedAnswer ? 'Your draft is saved — click Retry above to submit it.' : 'This step needs another try — use the retry button in the banner above.')
+          : state.canSend
+            ? (state.state === 'SPEAKING' || state.state === 'SYNTHESIZING' ? 'Your words. Sending interrupts audio.' : 'Your words. No perfect script needed.')
+            : (state.pending && !state.busy ? 'Practice paused — click Continue practice to resume.' : 'Wait until the current step finishes.');
   $('starter-bar').hidden = !active || Boolean(state.feedback);
   for (const chip of document.querySelectorAll('.starter-chip')) chip.disabled = !state.canSend;
   $('coach-toggle-badge').hidden = !state.feedback;
-  $('retry-button').disabled = state.busy;
+  $('retry-button').disabled = state.busy || isOffline;
   if ($('use-example-button')) $('use-example-button').disabled = state.busy || !state.feedback?.improvedMessage;
   $('hear-example').disabled = state.busy || !state.voiceEnabled || !configuration?.configured.speech;
   if (state.state === 'ERROR' && state.lastTranscribedText && !$('answer-text').value) {
@@ -730,5 +746,12 @@ const clock = setInterval(() => {
   $('recording-time').textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 }, 1000);
 window.addEventListener('pagehide', () => { session.reset(); clearInterval(clock); });
+window.addEventListener('offline', () => { syncOfflineUI(); render(session); });
+window.addEventListener('online', () => { syncOfflineUI(); refreshConfiguration(); });
+$('offline-retry-button')?.addEventListener('click', () => { syncOfflineUI(); if (!isOffline) refreshConfiguration(); });
+syncOfflineUI();
+if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === '127.0.0.1' || location.hostname === 'localhost')) {
+  navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
+}
 session.subscribe(render);
 refreshConfiguration();

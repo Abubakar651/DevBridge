@@ -31,15 +31,19 @@ Comprehensive engineering, architecture, and workflow reference for AI coding ag
 
 ## 2. Current Implementation Status vs. Roadmap
 
-### Currently Implemented (Phases 1, 2 & 3 + Post-Phase-2 UX Polish)
+### Currently Implemented (Phases 1, 2, 3 & 4 — Full Roadmap Complete)
 - **Composable personas, difficulty & mix-and-match (`server/scenario.py`, `web/app.js`):**
   - **5 stakeholder personas (`PERSONAS`):** `vp-ops`, `project-manager`, `client`, `it-manager`, `hr-representative`, each defining `priorities`, `noticesFirst`, `evidenceBar`, `openingStyle`, `pushbackTriggers`, and `coachingFocus`.
   - **3 stakeholder pressure / difficulty levels (`DIFFICULTIES`, Phase 3 / `DEV-32`):** `supportive` (*Supportive · warm & guiding*), `standard` (*Standard · realistic check-in*), and `skeptical` (*Skeptical · high-scrutiny pushback*), injected into `ROLEPLAY_PROMPT` and `COACH_PROMPT` and selectable via `#difficulty` in **Set the scene**.
   - **5-dimension checklist metadata & attempt comparison matrix (`CHECKLIST_DIMENSIONS`, Phase 3 / `DEV-32`, `DEV-34`):** `#comparison` renders a 5-signal checklist grid (`#checklist-comparison`) comparing `Attempt N-1` and `Attempt N` across `Audience clarity`, `Structure and relevance`, `Assertiveness`, `Respect`, and `Accuracy and next steps` (`Improved ✓`, `Strong ✓`, `Focus next`, `Practising now`), paired with `#use-example-button` (*Retry with example draft*).
   - **6 selectable scenarios (`SCENARIOS`):** `churn-pitch` (`vp-ops`, AI/ML engineer), `two-day-delay` (`project-manager`, Software developer), `client-scope-change` (`client`, Software developer), `it-ops-handoff` (`it-manager`, Software developer), `ai-ml-limits` (`it-manager`, AI/ML engineer), and `hr-contribution` (`hr-representative`, Software developer).
   - **Independent mix-and-match & familiarity (`FAMILIARITY_OPTIONS`):** Learners can choose a preset and independently swap `#persona`, `#difficulty`, `#discipline` (`AI/ML engineer` / `Software developer`), and `#familiarity` (**Plain language, business focused**, **Some technical context**, **Technical lead (architecture ok)**) without overwriting custom `knownFacts` or `goal`, displaying a `Custom mix` or `Customized` badge (`#scenario-custom-badge`).
+- **Mobile PWA, offline shell & shared-demo controls (`Phase 4` / `DEV-36`, `DEV-37`–`DEV-40`):**
+  - **Installable PWA (`web/manifest.webmanifest`, `web/icon-maskable.svg`, `web/sw.js`):** Standalone display metadata paired with a static-shell-only service worker (`devbridge-shell-v1`) that strictly excludes all `/api/*` and external requests.
+  - **Offline banner & recovery (`web/app.js`):** Detects `online`/`offline` state to show `#offline-notice` (*Reconnect* button) and safely disable cloud actions until connectivity returns.
+  - **Server access & usage limits (`server/config.py`, `server/app.py`):** Supports optional `ALLOWED_HOSTS`, HTTPS `X-Forwarded-Proto: https` with `Strict-Transport-Security`, constant-time `DEMO_ACCESS_TOKEN` verification (`401 ACCESS_REQUIRED`), and per-IP 60s sliding-window `RATE_LIMIT_PER_MINUTE` enforcement (`429 RATE_LIMITED`).
 - **Turn budget & natural closing:** Up to **`MAX_ANSWERS = 10`** learner answers per attempt (`server/models.py`). When the learner finishes early or the stakeholder sets `RoleplayResponse.closed = True` after a learner answer, Python automatically queues `"coach"`.
-- **Backend (`server/`):** Python 3.12 + FastAPI + Uvicorn + HTTPX + Pydantic. Owns personas, difficulties, checklist dimensions, scenarios, prompts, provider calls, structured-output validation, meaning-preservation guards, in-memory sessions, attempt histories, idempotency, and speech segmentation.
+- **Backend (`server/`):** Python 3.12 + FastAPI + Uvicorn + HTTPX + Pydantic. Owns personas, difficulties, checklist dimensions, scenarios, prompts, provider calls, structured-output validation, meaning-preservation guards, in-memory sessions, attempt histories, idempotency, rate limiting/access control, and speech segmentation.
 - **Frontend (`web/`):** Plain HTML, CSS (Apple HIG / Liquid Glass design system with `auto` / `light` / `dark` themes, unsticky mobile header `<=700px`), and browser ES modules. No Node runtime, no npm, no bundler.
 - **Voice & reasoning pipeline:**
   1. **Capture & Web Audio VAD (`web/audio.js`, `web/session.js`, Phase 3 / `DEV-33`):** Browser `MediaRecorder` (`Record answer` / `Done speaking`, 60s / 5 MB limit) enhanced with Web Audio `AudioContext` + `AnalyserNode` voice-activity and post-speech silence detection (`#auto-silence` *Auto-send on pause* toggle + live `#mic-status` indicator) while retaining manual controls and recovering transcribed text (`lastTranscribedText`) on downstream errors, plus always-open composer dock (`#answer-text`) + quick starter chips (`#starter-bar` with dynamic `starterLabels`).
@@ -50,8 +54,8 @@ Comprehensive engineering, architecture, and workflow reference for AI coding ag
   4. **Speak (`POST /api/speech/segments` + `POST /api/speak`):** Groq Orpheus (`canopylabs/orpheus-v1-english`, voice `troy`, 200-char segment limit, WAV output). Includes a single bounded `429` burst retry on `speak()`, preserves real `429` errors if the secondary key lacks terms, and degrades non-blockingly in the UI (`#voice-notice`).
      *Deferred backlog task (**DEV-5** / **GH #5**):* Replace Groq Orpheus TTS with open-source `kokoro-onnx` / OpenRouter `hexgrad/kokoro-82m` / `piper-tts`.
 
-### Planned Later Phases (from `Voice_Coach_Project_Plan.pdf`)
-- **Phase 4:** Mobile PWA (`manifest`, icons, static-shell-only service worker, offline notice, HTTPS delivery, access controls, and server usage limits).
+### Deferred Backlog
+- All planned Phases 1–4 from `Voice_Coach_Project_Plan.pdf` are implemented. The only remaining backlog item is **DEV-5** (*Replace Groq Orpheus TTS with open-source Kokoro-82M / Piper*).
 
 ---
 
@@ -201,13 +205,17 @@ Run all commands from `/home/bakar/Documents/Internships/NETSOL/Voice_Coach` usi
 - `tests/test_phase3_slice2.py` — Web Audio VAD pre-speech silence immunity, post-speech pause auto-finish, manual-only mode (`setAutoStopSilence(false)`), and `AudioContext` cleanup (`DEV-33`).
 - `tests/test_phase3_slice3.py` — `#difficulty`, `#auto-silence`, `#use-example-button`, and 5-signal `#checklist-comparison` matrix contract tests (`DEV-34`).
 - `tests/test_phase3_slice4.py` — 10-cycle VAD silence/retry/stop/reset durability test, multi-attempt checklist comparison flow, and `docs/PHASE_3_PILOT_VALIDATION.md` verification (`DEV-35`).
+- `tests/test_phase4_slice1.py` — PWA `manifest.webmanifest`, maskable icon, and static-shell-only `/sw.js` caching contract (`DEV-37`).
+- `tests/test_phase4_slice2.py` — Offline banner `#offline-notice`, `#offline-retry-button`, `online`/`offline` recovery, and `/sw.js` registration contract (`DEV-38`).
+- `tests/test_phase4_slice3.py` — `ALLOWED_HOSTS`, HTTPS HSTS header, optional `DEMO_ACCESS_TOKEN` auth guard, and sliding-window `RATE_LIMIT_PER_MINUTE` checks (`DEV-39`).
+- `tests/test_phase4_slice4.py` — Full Phase 4 completion gate end-to-end cycles (`ai-ml-limits` + `hr-contribution` with Retry) and `docs/PHASE_4_PWA_VALIDATION.md` verification (`DEV-40`).
 - `tests/smoke_runtime.py` — End-to-end launcher checks for all 3 entry points.
 
 ---
 
 ## 7. Engineering Guardrails for Agents
 
-1. **GitHub & Jira workflow:** Track changes in Jira project `DEV` (`Devbridge`, grouped by `Workstream -> Task`, e.g., **DEV-20** for Phase 2, **DEV-25** for UI/UX Polish, and **DEV-31** for Phase 3) and GitHub `Abubakar651/DevBridge` incrementally one task/slice at a time; never bulk-create tasks unless asked. Deferred open backlog item: **DEV-5** / **GH #5** (Orpheus TTS replacement).
+1. **GitHub & Jira workflow:** Track changes in Jira project `DEV` (`Devbridge`, grouped by `Workstream -> Task`, e.g., **DEV-20** for Phase 2, **DEV-25** for UI/UX Polish, **DEV-31** for Phase 3, and **DEV-36** for Phase 4) and GitHub `Abubakar651/DevBridge` incrementally one task/slice at a time; never bulk-create tasks unless asked. Deferred open backlog item: **DEV-5** / **GH #5** (Orpheus TTS replacement).
 2. **Restart the server after Python edits:** A running `run.py` process holds old `server/` modules in memory until restarted.
 3. **Never leak credentials:** Never read, print, log, or commit `.env` values or return keys to `web/`.
 4. **Never weaken grounding or UI contracts:** Keep `validate_feedback()` guards (`server/models.py`), `RoleplayResponse` question-count rules (`server/providers.py`), and `test_ui_contract.py` invariants passing.

@@ -12,7 +12,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ENV_KEYS = {
     "GEMINI_API_KEY", "GOOGLE_API_KEY", "GROQ_API_KEY", "GROQ_API_KEY2", "GROQ_API_KEY_2", "OPENROUTER_API_KEY",
     "GEMINI_MODEL", "GROQ_STT_MODEL", "GROQ_TTS_MODEL", "GROQ_TTS_VOICE", "GROQ_REASONING_MODEL", "OPENROUTER_MODEL",
-    "HOST", "PORT",
+    "HOST", "PORT", "ALLOWED_HOSTS", "DEMO_ACCESS_TOKEN", "RATE_LIMIT_PER_MINUTE",
 }
 
 
@@ -57,6 +57,9 @@ class Settings:
     voice: str = "troy"
     host: str = "127.0.0.1"
     port: int = 4317
+    allowed_hosts: tuple[str, ...] = ()
+    demo_access_token: str = field(default="", repr=False)
+    rate_limit_per_minute: int = 0
     timeout_seconds: float = 30
     retry_delay_seconds: float = 0.5
 
@@ -81,6 +84,17 @@ def load_settings(environment: Mapping[str, str] | None = None) -> Settings:
         raise ValueError("PORT must be a valid port number.") from None
     if not 0 <= port <= 65535:
         raise ValueError("PORT must be a valid port number.")
+    try:
+        rate_limit = int(values.get("RATE_LIMIT_PER_MINUTE", "0"))
+    except ValueError:
+        raise ValueError("RATE_LIMIT_PER_MINUTE must be a non-negative integer.") from None
+    if rate_limit < 0:
+        raise ValueError("RATE_LIMIT_PER_MINUTE must be a non-negative integer.")
+    allowed_hosts = tuple(
+        item.strip().lower()
+        for item in values.get("ALLOWED_HOSTS", "").split(",")
+        if item.strip()
+    )
     return Settings(
         gemini_key=values.get("GEMINI_API_KEY") or values.get("GOOGLE_API_KEY", ""),
         groq_key=values.get("GROQ_API_KEY", ""),
@@ -93,4 +107,7 @@ def load_settings(environment: Mapping[str, str] | None = None) -> Settings:
         tts_model=values.get("GROQ_TTS_MODEL", Settings.tts_model),
         voice=values.get("GROQ_TTS_VOICE", Settings.voice),
         host=values.get("HOST", Settings.host), port=port,
+        allowed_hosts=allowed_hosts,
+        demo_access_token=values.get("DEMO_ACCESS_TOKEN", ""),
+        rate_limit_per_minute=rate_limit,
     )
