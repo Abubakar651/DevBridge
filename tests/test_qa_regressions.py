@@ -1065,7 +1065,7 @@ def test_churn_pitch_and_two_day_delay_without_pdf_export():
     assert SCENARIO["id"] == "churn-pitch"
     assert DEFAULT_CONTEXT["scenarioId"] == "churn-pitch"
     assert DEFAULT_CONTEXT["discipline"] == "AI/ML engineer"
-    assert [s["id"] for s in SCENARIOS] == ["churn-pitch", "two-day-delay"]
+    assert [s["id"] for s in SCENARIOS[:2]] == ["churn-pitch", "two-day-delay"]
     assert get_scenario("two-day-delay")["stakeholder"] == "Project manager"
 
     for path in ("server/scenario.py", "server/prompts.py", "server/providers.py", "web/index.html", "web/app.js"):

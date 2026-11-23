@@ -134,7 +134,7 @@ def main(args):
             def opening():
                 nonlocal snapshot
                 snapshot = action(session_path + "/advance")
-                assert snapshot["playback"]["speaker"] == "Project manager"
+                assert snapshot["playback"]["speaker"] == config["scenario"]["stakeholder"]
                 return {"reply": snapshot["playback"]["text"]}
             if check("Live stakeholder opening", opening) and transcript:
                 if voice_available:

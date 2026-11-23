@@ -52,8 +52,10 @@ function applyTheme(theme, persist = true) {
 
 function renderSceneBrief() {
   const chips = element('div', 'brief-chips');
+  const personaLabel = selectedPersona()?.label;
   const roleLabel = $('discipline').selectedOptions?.[0]?.textContent || $('discipline').value;
   const audienceLabel = $('familiarity').selectedOptions?.[0]?.textContent || $('familiarity').value;
+  if (personaLabel) chips.append(element('span', 'brief-chip', personaLabel));
   if (roleLabel) chips.append(element('span', 'brief-chip', roleLabel));
   if (audienceLabel) chips.append(element('span', 'brief-chip', audienceLabel));
 
@@ -109,19 +111,34 @@ function selectedScenario() {
   return list.find(item => item.id === currentId) || configuration?.scenario || null;
 }
 
-function applyScenario(scenarioId, resetFields = true) {
-  const list = configuration?.scenarios || (configuration?.scenario ? [configuration.scenario] : []);
-  const scenario = list.find(item => item.id === scenarioId) || configuration?.scenario;
-  if (!scenario) return;
-  if ($('scenario')) $('scenario').value = scenario.id;
-  if ($('header-scenario-pill')) $('header-scenario-pill').textContent = `${scenario.title} · ${scenario.stakeholderTag || scenario.stakeholder} · ${scenario.duration}`;
-  if ($('scenario-title')) $('scenario-title').textContent = scenario.title;
-  if ($('scenario-description')) $('scenario-description').textContent = scenario.description;
-  if ($('scenario-stakeholder')) $('scenario-stakeholder').textContent = scenario.stakeholder;
-  if ($('scenario-duration')) $('scenario-duration').textContent = scenario.duration;
-  if ($('empty-headline') && scenario.emptyHeadline) $('empty-headline').textContent = scenario.emptyHeadline;
-  if ($('empty-subtitle') && scenario.emptySubtitle) {
-    const lines = scenario.emptySubtitle.split('\n');
+function selectedPersona() {
+  const scenario = selectedScenario();
+  const list = configuration?.personas || [];
+  const currentId = $('persona')?.value || scenario?.personaId;
+  const found = list.find(item => item.id === currentId);
+  if (found) return found;
+  const selectedLabel = $('persona')?.selectedOptions?.[0]?.textContent;
+  return {
+    id: currentId || scenario?.personaId || 'project-manager',
+    label: selectedLabel || scenario?.stakeholder || 'Project manager',
+    tag: scenario?.stakeholderTag || selectedLabel || scenario?.stakeholder || 'PM',
+    avatar: scenario?.avatar || 'PM',
+  };
+}
+
+function syncPersonaUI() {
+  const scenario = selectedScenario();
+  const persona = selectedPersona();
+  if ($('header-scenario-pill') && scenario) {
+    $('header-scenario-pill').textContent = `${scenario.title} · ${persona.tag || persona.label} · ${scenario.duration}`;
+  }
+  if ($('scenario-stakeholder')) $('scenario-stakeholder').textContent = persona.label;
+  if ($('composer-prompt-label')) $('composer-prompt-label').textContent = `Message your ${persona.label}`;
+  if ($('empty-subtitle')) {
+    const text = scenario?.emptySubtitle && persona.id === scenario.personaId
+      ? scenario.emptySubtitle
+      : `Your ${persona.label} will start the conversation.\nSpeak or type — pause, rethink, and try again anytime.`;
+    const lines = text.split('\n');
     const nodes = [];
     lines.forEach((line, idx) => {
       if (idx > 0) nodes.push(document.createElement('br'));
@@ -129,6 +146,19 @@ function applyScenario(scenarioId, resetFields = true) {
     });
     $('empty-subtitle').replaceChildren(...nodes);
   }
+  if (briefMode === 'brief') renderSceneBrief();
+  render(session);
+}
+
+function applyScenario(scenarioId, resetFields = true) {
+  const list = configuration?.scenarios || (configuration?.scenario ? [configuration.scenario] : []);
+  const scenario = list.find(item => item.id === scenarioId) || configuration?.scenario;
+  if (!scenario) return;
+  if ($('scenario')) $('scenario').value = scenario.id;
+  if ($('scenario-title')) $('scenario-title').textContent = scenario.title;
+  if ($('scenario-description')) $('scenario-description').textContent = scenario.description;
+  if ($('scenario-duration')) $('scenario-duration').textContent = scenario.duration;
+  if ($('empty-headline') && scenario.emptyHeadline) $('empty-headline').textContent = scenario.emptyHeadline;
   if ($('easy-start-steps') && Array.isArray(scenario.steps)) {
     const stepNodes = scenario.steps.map(step => {
       const span = document.createElement('span');
@@ -140,12 +170,13 @@ function applyScenario(scenarioId, resetFields = true) {
   if (scenario.starters) {
     for (const [key, id] of [['full', 'starter-full'], ['ready', 'starter-ready'], ['tradeoff', 'starter-tradeoff'], ['recommend', 'starter-recommend']]) {
       if ($(id) && scenario.starters[key]) $(id).dataset.starter = scenario.starters[key];
+      if ($(id) && scenario.starterLabels?.[key]) $(id).textContent = scenario.starterLabels[key];
     }
   }
   if ($('answer-text') && scenario.placeholder) $('answer-text').placeholder = scenario.placeholder;
-  if ($('composer-prompt-label')) $('composer-prompt-label').textContent = `Message your ${scenario.stakeholder}`;
 
   if (resetFields && scenario.defaultContext) {
+    if ($('persona')) $('persona').value = scenario.personaId || configuration?.personas?.[0]?.id || 'vp-ops';
     for (const key of ['discipline', 'knownFacts', 'goal', 'familiarity']) {
       $(key === 'knownFacts' ? 'facts' : key).value = scenario.defaultContext[key];
     }
@@ -158,7 +189,7 @@ function applyScenario(scenarioId, resetFields = true) {
     autoResize($('goal'), 180);
     renderSceneBrief();
   }
-  render(session);
+  syncPersonaUI();
 }
 
 function renderMessages(state) {
@@ -167,7 +198,7 @@ function renderMessages(state) {
   if (signature === messageSignature) return;
   messageSignature = signature;
   $('messages').replaceChildren();
-  const stakeholderLabel = (selectedScenario()?.stakeholder || 'Stakeholder').toUpperCase();
+  const stakeholderLabel = (selectedPersona()?.label || 'Stakeholder').toUpperCase();
   for (const message of messages) {
     const item = element('li', `message ${message.role}`);
     item.append(element('div', 'message-label', message.role === 'user' ? 'YOU' : stakeholderLabel));
@@ -240,7 +271,7 @@ function renderComparison(state) {
 function stateLabel(state) {
   if (state.state === 'LISTENING') return state.recordReady ? 'Listening. Say it in your own words.' : 'Waiting for microphone permission…';
   if (state.state === 'TRANSCRIBING') return 'Turning your answer into text…';
-  if (state.state === 'THINKING') return state.serverStage === 'coach' ? 'Your coach is reflecting on the conversation…' : `Your ${selectedScenario()?.stakeholder || 'project manager'} is thinking…`;
+  if (state.state === 'THINKING') return state.serverStage === 'coach' ? 'Your coach is reflecting on the conversation…' : `Your ${selectedPersona()?.label || 'project manager'} is thinking…`;
   if (state.state === 'SYNTHESIZING') return 'Preparing the spoken reply…';
   if (state.state === 'SPEAKING') return state.blocked ? 'Your browser needs a tap to play audio.' : `${state.pending?.speaker || 'Your coach'} is speaking…`;
   if (state.state === 'ERROR') return state.answers ? 'Your accepted answers are still here.' : 'Nothing was submitted. Review the details and try again.';
@@ -268,9 +299,9 @@ function render(state) {
     span.classList.toggle('is-done', index < state.answers);
     span.classList.toggle('is-active', active && !state.feedback && index === state.answers && state.answers < maxAnswers);
   });
-  const scenario = selectedScenario();
-  const stakeholder = scenario?.stakeholder || 'Project manager';
-  const avatar = scenario?.avatar || 'PM';
+  const persona = selectedPersona();
+  const stakeholder = persona?.label || 'Project manager';
+  const avatar = persona?.avatar || 'PM';
   $('attempt-label').textContent = active ? `ATTEMPT ${state.attempt.number}` : 'FIRST ATTEMPT';
   $('partner-name').textContent = coaching ? 'Your communication coach' : `Your ${stakeholder}`;
   $('partner-description').textContent = coaching ? 'Specific feedback, with your facts intact' : 'A simulated workplace conversation';
@@ -341,6 +372,24 @@ async function refreshConfiguration() {
           return opt;
         });
         $('scenario').replaceChildren(...opts);
+      }
+      if ($('persona') && Array.isArray(configuration.personas)) {
+        const personaOpts = configuration.personas.map(item => {
+          const opt = document.createElement('option');
+          opt.value = item.id;
+          opt.textContent = item.label;
+          return opt;
+        });
+        $('persona').replaceChildren(...personaOpts);
+      }
+      if ($('familiarity') && Array.isArray(configuration.familiarityOptions)) {
+        const famOpts = configuration.familiarityOptions.map(item => {
+          const opt = document.createElement('option');
+          opt.value = item.value;
+          opt.textContent = item.label;
+          return opt;
+        });
+        $('familiarity').replaceChildren(...famOpts);
       }
       contextInitialized = true;
       applyScenario(configuration.defaultContext.scenarioId, true);
@@ -413,7 +462,14 @@ function validateContext() {
   return allValid;
 }
 function readContext() {
-  return { scenarioId: $('scenario')?.value || configuration.scenario.id, discipline: $('discipline').value, knownFacts: $('facts').value.trim(), goal: $('goal').value.trim(), familiarity: $('familiarity').value };
+  return {
+    scenarioId: $('scenario')?.value || configuration.scenario.id,
+    personaId: $('persona')?.value || selectedScenario()?.personaId,
+    discipline: $('discipline').value,
+    knownFacts: $('facts').value.trim(),
+    goal: $('goal').value.trim(),
+    familiarity: $('familiarity').value,
+  };
 }
 for (const [input] of contextChecks) {
   input.addEventListener('input', () => {
@@ -429,6 +485,12 @@ if ($('scenario')) {
   $('scenario').addEventListener('change', event => {
     if (session.attempt || session.busy) return;
     applyScenario(event.target.value, true);
+  });
+}
+if ($('persona')) {
+  $('persona').addEventListener('change', () => {
+    if (session.attempt || session.busy) return;
+    syncPersonaUI();
   });
 }
 

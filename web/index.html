@@ -92,7 +92,11 @@
           <form id="context-form">
             <div class="setting-row">
               <label for="scenario">Scenario</label>
-              <select id="scenario" name="scenario"><option value="churn-pitch">Customer churn prediction pitch</option><option value="two-day-delay">Explaining a 2-day delay</option></select>
+              <select id="scenario" name="scenario"><option value="churn-pitch">Customer churn prediction pitch</option><option value="two-day-delay">Explaining a 2-day delay</option><option value="client-scope-change">Clarifying a client scope change</option><option value="it-ops-handoff">IT handoff &amp; rollout blockers</option><option value="ai-ml-limits">Explaining AI/ML limits &amp; pilot</option><option value="hr-contribution">Describing personal contribution</option></select>
+            </div>
+            <div class="setting-row">
+              <label for="persona">Stakeholder persona</label>
+              <select id="persona" name="persona"><option value="vp-ops">VP of Operations</option><option value="project-manager">Project manager</option><option value="client">Client</option><option value="it-manager">IT manager</option><option value="hr-representative">HR representative</option></select>
             </div>
             <div class="setting-row">
               <label for="discipline">Your role</label>
@@ -100,7 +104,7 @@
             </div>
             <div class="setting-row">
               <label for="familiarity">Audience prefers</label>
-              <select id="familiarity" name="familiarity"><option value="Business-focused; prefers plain language">Plain language, business focused</option><option value="Some technical context; explain trade-offs">Some technical context</option></select>
+              <select id="familiarity" name="familiarity"><option value="Business-focused; prefers plain language">Plain language, business focused</option><option value="Some technical context; explain trade-offs">Some technical context</option><option value="Technical lead; architecture &amp; metrics ok">Technical lead (architecture ok)</option></select>
             </div>
             <label for="facts">What do we know? <span class="label-detail">Edit the scenario facts</span></label>
             <textarea id="facts" name="facts" rows="5" minlength="20" maxlength="4000" aria-describedby="facts-error" required></textarea>
@@ -240,7 +244,7 @@
     <div class="dialog-heading"><h2 id="how-dialog-title">A clearer message, one attempt at a time.</h2><button class="icon-button close-dialog" type="button" aria-label="Close instructions">×</button></div>
     <ol class="how-steps">
       <li><strong>Set the scene.</strong> Add the facts and the message you want to communicate.</li>
-      <li><strong>Have the conversation.</strong> Respond to your simulated project manager by voice or text.</li>
+      <li><strong>Have the conversation.</strong> Respond to your simulated stakeholder by voice or text.</li>
       <li><strong>Reflect with your coach.</strong> Finish after one to ten answers for specific feedback and an example.</li>
       <li><strong>Try it again.</strong> Keep the same facts and practise a clearer explanation.</li>
     </ol>

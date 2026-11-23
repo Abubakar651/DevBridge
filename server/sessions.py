@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 
 from .errors import AppError
 from .models import Context, Feedback, MAX_ANSWERS
-from .scenario import get_scenario
+from .scenario import resolve_persona
 
 
 @dataclass
@@ -77,7 +77,7 @@ class PracticeStore:
     def snapshot(practice: Practice) -> dict:
         return {
             "sessionId": practice.session_id,
-            "context": practice.context.model_dump(by_alias=True),
+            "context": practice.context.model_dump(by_alias=True, exclude_none=True),
             "maxAnswers": MAX_ANSWERS,
             "pendingStage": practice.pending,
             "attempts": [{"number": attempt.number, "messages": copy.deepcopy(attempt.messages), "feedback": attempt.feedback.model_dump(by_alias=True) if attempt.feedback else None} for attempt in practice.attempts],
@@ -102,7 +102,7 @@ class PracticeStore:
 
     def create(self, context: Context, request_id: str) -> dict:
         self.prune()
-        signature = self.signature("create", context.model_dump(by_alias=True))
+        signature = self.signature("create", context.model_dump(by_alias=True, exclude_none=True))
         if request_id in self.creations:
             session_id, previous = self.creations[request_id]
             if signature != previous:
@@ -177,7 +177,7 @@ class PracticeStore:
                 if practice.deleted or generation != practice.generation:
                     raise AppError(409, "This step was stopped. Continue when you are ready.", "STALE_REQUEST")
                 if stage == "roleplay":
-                    stakeholder = get_scenario(practice.context.scenario_id)["stakeholder"]
+                    stakeholder = resolve_persona(practice.context.scenario_id, practice.context.persona_id)["label"]
                     practice.attempt.messages.append({"role": "assistant", "content": result})
                     practice.attempt.playback = {"text": result, "speaker": stakeholder}
                     closed = bool(getattr(provider, "last_roleplay_closed", False))

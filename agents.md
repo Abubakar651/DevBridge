@@ -1,6 +1,6 @@
 # agents.md — DevBridge (Voice Coach)
 
-Comprehensive engineering and product reference for AI coding agents working in `NETSOL/Voice_Coach`.
+Comprehensive engineering, architecture, and workflow reference for AI coding agents working in `NETSOL/Voice_Coach`.
 
 ---
 
@@ -12,37 +12,45 @@ Comprehensive engineering and product reference for AI coding agents working in 
 - **Confirmed coaching loop:**
   `Role-play the stakeholder -> Give grounded feedback -> Offer an improved explanation -> Practise again`
   Retries keep the exact same scenario facts (`Context`) and store each attempt separately for side-by-side comparison.
-- **Target stakeholders (from [Voice_Coach_Project_Plan.pdf](output/pdf/Voice_Coach_Project_Plan.pdf) V3.0):**
-  1. **Project manager** — progress updates, dependencies, realistic expectations *(implemented in Phase 1)*.
-  2. **Client** — value, feasibility, scope changes, delivery options *(Phase 2)*.
-  3. **IT manager** — operational impact, implementation trade-offs, support needs *(Phase 2)*.
-  4. **HR representative** — contributions, responsibilities, workload, development goals *(Phase 2)*.
+- **Target stakeholders (from [Voice_Coach_Project_Plan.pdf](output/pdf/Voice_Coach_Project_Plan.pdf) V3.0 — all implemented in Phase 2 / Jira `DEV-20`):**
+  1. **VP of Operations** — AI/ML progress, business outcomes, rollout approval *(preset: `churn-pitch`)*.
+  2. **Project manager** — delivery delays, dependencies, stability trade-offs, next steps *(preset: `two-day-delay`)*.
+  3. **Client** — value, feasibility, scope changes, delivery options *(preset: `client-scope-change`)*.
+  4. **IT manager** — operational impact, support needs, AI/ML evaluation limits & pilots *(presets: `it-ops-handoff`, `ai-ml-limits`)*.
+  5. **HR representative** — personal contributions, responsibilities, workload, handover impact *(preset: `hr-contribution`)*.
 - **5-dimension communication checklist (`Dimension` in `server/models.py`):**
   1. `Audience clarity` — plain language; necessary technical terms explained.
   2. `Structure and relevance` — outcome and business impact before unnecessary implementation detail.
   3. `Assertiveness` — clear position and recommendation; uncertainty stated when justified; polite requests and decision questions remain valid.
   4. `Respect` — avoids blame, dismissiveness, and assumptions about listener intelligence.
   5. `Accuracy and next steps` — facts and limits preserved; next action or needed decision is clear.
-- **Superseded legacy scope:** Earlier OOP/SQL technical-interview drills, technical-depth grading, fixed 5-answer interviews, and the old Node/npm backend are superseded. `build_voice_coach_board.py`, `miro_client.py`, and `outputs/board_manifest.json` remain only as historical Miro planning utilities.
+- **Superseded legacy scope:** Earlier OOP/SQL technical-interview drills, technical-depth grading, fixed 5-answer interviews, the old `release-update` PDF-export scenario, and the legacy Node/npm backend are superseded. `build_voice_coach_board.py`, `miro_client.py`, and `outputs/board_manifest.json` remain only as historical Miro planning utilities.
+- **Project plan reference:** [Voice_Coach_Project_Plan.pdf](output/pdf/Voice_Coach_Project_Plan.pdf) (V3.0, generated from `docs/voice_coach_documentation.json`).
 
 ---
 
-## 2. Implementation Status vs. Delivery Roadmap
+## 2. Current Implementation Status vs. Roadmap
 
-### Implemented Now (Phase 1)
-- **Single scenario:** `release-update` ("The release update", Project Manager persona, `server/scenario.py`).
-- **Backend (`server/`):** Python 3.12 + FastAPI + Uvicorn + HTTPX + Pydantic. Owns scenario data, prompts, provider integrations, structured-output validation, meaning-preservation guards, in-memory sessions, attempt histories, idempotency, and speech segmentation.
-- **Frontend (`web/`):** Plain HTML, CSS, and browser ES modules. No Node runtime, no npm, no bundler.
+### Currently Implemented (Phases 1 & 2)
+- **Composable personas & mix-and-match (`server/scenario.py`, `web/app.js`):**
+  - **5 stakeholder personas (`PERSONAS`):** `vp-ops`, `project-manager`, `client`, `it-manager`, `hr-representative`, each defining `priorities`, `noticesFirst`, `evidenceBar`, `openingStyle`, `pushbackTriggers`, and `coachingFocus`.
+  - **6 selectable scenarios (`SCENARIOS`):** `churn-pitch` (`vp-ops`, AI/ML engineer), `two-day-delay` (`project-manager`, Software developer), `client-scope-change` (`client`, Software developer), `it-ops-handoff` (`it-manager`, Software developer), `ai-ml-limits` (`it-manager`, AI/ML engineer), and `hr-contribution` (`hr-representative`, Software developer).
+  - **Independent mix-and-match & familiarity (`FAMILIARITY_OPTIONS`):** Learners can choose a preset and independently swap `#persona`, `#discipline` (`AI/ML engineer` / `Software developer`), and `#familiarity` (**Plain language, business focused**, **Some technical context**, **Technical lead (architecture ok)**) without overwriting custom `knownFacts` or `goal`.
+- **Turn budget & natural closing:** Up to **`MAX_ANSWERS = 10`** learner answers per attempt (`server/models.py`). When the learner finishes early or the stakeholder sets `RoleplayResponse.closed = True` after a learner answer, Python automatically queues `"coach"`.
+- **Backend (`server/`):** Python 3.12 + FastAPI + Uvicorn + HTTPX + Pydantic. Owns personas, scenarios, prompts, provider calls, structured-output validation, meaning-preservation guards, in-memory sessions, attempt histories, idempotency, and speech segmentation.
+- **Frontend (`web/`):** Plain HTML, CSS (Apple HIG / Liquid Glass design system with `auto` / `light` / `dark` themes), and browser ES modules. No Node runtime, no npm, no bundler.
 - **Voice & reasoning pipeline:**
-  1. **Capture (`web/audio.js`):** Browser `MediaRecorder` (`Record answer` / `Done speaking`, 60s / 5 MB limit) or always-open text composer (`#answer-text`) + quick starter chips (`#starter-bar`).
+  1. **Capture (`web/audio.js`):** Browser `MediaRecorder` (`Record answer` / `Done speaking`, 60s / 5 MB limit) or always-open composer dock (`#answer-text`) + quick starter chips (`#starter-bar` with dynamic `starterLabels`).
   2. **Transcribe (`POST /api/transcribe`):** Groq Whisper (`whisper-large-v3-turbo`).
-  3. **Reason (`POST /api/practice/{id}/advance`):** Gemini (`gemini-3.5-flash-lite` via Interactions API, `store=false`) primary, with automatic fallback to Groq (`openai/gpt-oss-20b` via Chat Completions strict JSON schema).
-  4. **Speak (`POST /api/speech/segments` + `POST /api/speak`):** Groq Orpheus (`canopylabs/orpheus-v1-english`, voice `troy`, 200-char segment limit, WAV output). TTS failures (`429`, `503`, etc.) degrade non-blockingly via `#voice-notice` without locking text or mic input.
+  3. **Reason (`POST /api/practice/{id}/advance`):** 3-stage fallback chain:
+     **Gemini (`gemini-3.5-flash-lite`, Interactions API, `store=false`) -> Groq (`openai/gpt-oss-20b`, Chat Completions strict schema) -> OpenRouter (`openai/gpt-oss-20b`, Chat Completions strict schema + `require_parameters: true`)**.
+     Cancellation (`asyncio.CancelledError`) never triggers fallback.
+  4. **Speak (`POST /api/speech/segments` + `POST /api/speak`):** Groq Orpheus (`canopylabs/orpheus-v1-english`, voice `troy`, 200-char segment limit, WAV output). Includes a single bounded `429` burst retry on `speak()`, preserves real `429` errors if the secondary key lacks terms, and degrades non-blockingly in the UI (`#voice-notice`).
+     *Deferred backlog task (**DEV-5** / **GH #5**):* Replace Groq Orpheus TTS with open-source `kokoro-onnx` / OpenRouter `hexgrad/kokoro-82m` / `piper-tts`.
 
 ### Planned Later Phases (from `Voice_Coach_Project_Plan.pdf`)
-- **Phase 2:** Add Client, IT Manager, and HR personas; software and AI/ML scenario variants (completed work, deadlines/capacity, scope changes, blockers/dependencies, AI/ML limits, contribution/workload); configurable audience familiarity.
-- **Phase 3:** Automatic voice-activity/silence detection (retaining manual controls), improved playback recovery & text entry, attempt comparison against the communication checklist, difficulty settings, and qualitative pilot validation.
-- **Phase 4:** Mobile PWA (`manifest`, icons, responsive layout, service worker caching static shell only, offline notice, HTTPS delivery, access controls, and server usage limits).
+- **Phase 3:** Automatic voice-activity/silence detection (retaining manual controls), checklist-based attempt comparison, difficulty settings (only after baseline coaching is consistently reliable), and qualitative pilot validation.
+- **Phase 4:** Mobile PWA (`manifest`, icons, static-shell-only service worker, offline notice, HTTPS delivery, access controls, and server usage limits).
 
 ---
 
@@ -51,13 +59,14 @@ Comprehensive engineering and product reference for AI coding agents working in 
 ```text
 Browser (web/)                              Python Server (server/)
 ──────────────                              ───────────────────────
-index.html + styles.css                     run.py / server/runtime.py (.venv)
-app.js (DOM, starters, forms)    <─HTTP─>   app.py (FastAPI + LocalMiddleware + cancellable)
-session.js (UI state machine)               sessions.py (PracticeStore, Attempt, Lock, generation)
-audio.js (Recorder + SpeechPlayer)          providers.py (Gemini Interactions + Groq fallback/STT/TTS)
+index.html + styles.css (Liquid Glass)      run.py / server/runtime.py (../.venv)
+app.js (DOM, theme, Brief/Edit, starters)   app.py (FastAPI + LocalMiddleware + cancellable)
+session.js (UI state machine)      <─HTTP─> sessions.py (PracticeStore, Attempt, Lock, generation)
+audio.js (Recorder + SpeechPlayer)          providers.py (Gemini -> Groq -> OpenRouter, Whisper, Orpheus)
 api.js (same-origin fetch + keepalive)      models.py (Pydantic + validate_feedback grounding guards)
                                             prompts.py (ROLEPLAY_PROMPT, COACH_PROMPT)
                                             speech.py (200-char plain-text segmentation)
+                                            scenario.py (PERSONAS, FAMILIARITY_OPTIONS, SCENARIOS, resolve_persona)
 ```
 
 **Core architectural boundary:** Python is the single source of truth for conversation history, turn counts, stage transitions (`roleplay` -> `coach`), prompts, validation, and API keys. The browser never holds credentials, never mutates history directly, and only sends user actions (`create`, `answer`, `advance`, `finish`, `retry`, `stop`, `delete`) with UUID `requestId`s.
@@ -67,132 +76,134 @@ api.js (same-origin fetch + keepalive)      models.py (Pydantic + validate_feedb
 ## 4. Backend Deep Dive (`server/`)
 
 ### 4.1 Launcher & Environment (`run.py`, `server/runtime.py`, `server/config.py`)
-- **Launch paths:** `python3 run.py`, `.venv/bin/python -m server`, or `python3 server/app.py` (all enter `server.runtime.main()`).
-- **Venv enforcement:** `server/runtime.py` checks `Path(sys.prefix).resolve() != (PROJECT_ROOT / ".venv").resolve()` and re-execs into `PROJECT_ROOT/.venv/bin/python` if needed.
-- **Note on legacy doc paths:** `README.md` and some `docs/*.md` files mention `/home/bakar/Documents/NAVTTC/.venv`, which was an earlier path. The live code in `server/runtime.py` and `server/check_environment.py` uses `PROJECT_ROOT / ".venv"` (`/home/bakar/Documents/Internships/NETSOL/Voice_Coach/.venv`).
-- **Config loading (`server/config.py`):** `load_settings()` parses only whitelisted `ENV_KEYS` without mutating `os.environ`. Precedence (lowest to highest):
-  1. `PROJECT_ROOT.parents[2] / ".env"`
-  2. `PROJECT_ROOT / ".env"`
-  3. `os.environ`
+- **Shared virtual environment:** Lives one level up at `/home/bakar/Documents/Internships/NETSOL/.venv` (`PROJECT_ROOT.parent / ".venv"` in `server/runtime.py`, `parents[2] / ".venv"` in `server/check_environment.py`).
+- **Launch paths:** `python3 run.py`, `../.venv/bin/python -m server`, or `python3 server/app.py` (all enter `server.runtime.main()`, which re-execs into `SHARED_VENV / "bin" / "python"` if launched from another Python).
+- **Config loading (`server/config.py`):** `load_settings()` parses only whitelisted `ENV_KEYS` without mutating `os.environ`, strips whitespace on quoted/unquoted values, ignores whitespace-only overrides, validates `0 <= port <= 65535` (raising normalized `ValueError("PORT must be a valid port number.")` on non-numeric `PORT`), and checks `.env` in lowest-to-highest order:
+  1. `PROJECT_ROOT.parents[2] / ".env"` (if `len(parents) > 2`)
+  2. `PROJECT_ROOT.parents[1] / ".env"` (if `len(parents) > 1`)
+  3. `PROJECT_ROOT / ".env"`
+  4. `os.environ` / explicit `environment` mapping
 - **Whitelisted `ENV_KEYS` & defaults:**
-  - `GEMINI_API_KEY` (alias `GOOGLE_API_KEY`) — default `""`
-  - `GROQ_API_KEY` — default `""` (used for Whisper STT, backup reasoning, and fallback TTS)
-  - `GROQ_API_KEY2` (alias `GROQ_API_KEY_2`) — default `""` (preferred for Orpheus TTS only)
-  - `GEMINI_MODEL` — default `"gemini-3.5-flash-lite"`
-  - `GROQ_REASONING_MODEL` — default `"openai/gpt-oss-20b"`
-  - `GROQ_STT_MODEL` — default `"whisper-large-v3-turbo"`
-  - `GROQ_TTS_MODEL` — default `"canopylabs/orpheus-v1-english"`
-  - `GROQ_TTS_VOICE` — default `"troy"`
-  - `HOST` — default `"127.0.0.1"`
-  - `PORT` — default `4317`
+  - `GEMINI_API_KEY` (alias `GOOGLE_API_KEY`) — `""`
+  - `GROQ_API_KEY` — `""` (Whisper STT, Groq backup reasoning, fallback TTS)
+  - `GROQ_API_KEY2` (alias `GROQ_API_KEY_2`) — `""` (preferred for Orpheus TTS only)
+  - `OPENROUTER_API_KEY` — `""` (secondary reasoning fallback)
+  - `GEMINI_MODEL` — `"gemini-3.5-flash-lite"`
+  - `GROQ_REASONING_MODEL` — `"openai/gpt-oss-20b"`
+  - `OPENROUTER_MODEL` — `"openai/gpt-oss-20b"`
+  - `GROQ_STT_MODEL` — `"whisper-large-v3-turbo"`
+  - `GROQ_TTS_MODEL` — `"canopylabs/orpheus-v1-english"`
+  - `GROQ_TTS_VOICE` — `"troy"`
+  - `HOST` — `"127.0.0.1"`
+  - `PORT` — `4317`
   - Fixed in `Settings`: `timeout_seconds = 30`, `retry_delay_seconds = 0.5`.
 
 ### 4.2 FastAPI App, Security Middleware & Cancellation (`server/app.py`)
 - **`LocalMiddleware`:**
-  - Rejects non-local `Host` headers (allows `localhost`, `127.0.0.1`, `::1`, `settings.host`; rejects userinfo) with `403 INVALID_ORIGIN`.
-  - Rejects mismatched `Origin` headers and `sec-fetch-site: cross-site` with `403 INVALID_ORIGIN`.
-  - Enforces body size limits on both `Content-Length` and chunked request streams (`64 KB` for JSON, `5 MB` for `/api/transcribe`), returning `413 PAYLOAD_TOO_LARGE`.
+  - Calls `settings_loader()` inside `try/except`, returning `500 CONFIGURATION_ERROR` JSON on `ValueError` instead of crashing ASGI.
+  - Rejects non-local `Host` headers (allows `localhost`, `127.0.0.1`, `::1`, `settings.host`; rejects userinfo), mismatched `Origin`, and `sec-fetch-site: cross-site` with `403 INVALID_ORIGIN`.
+  - Rejects negative `Content-Length` (`400 INVALID_INPUT`) and enforces `64 KB` (JSON) / `5 MB` (`/api/transcribe`) limits across both `Content-Length` and chunked request bodies (`413 PAYLOAD_TOO_LARGE`).
   - Sets security headers on every response: `cache-control: no-store`, `x-content-type-options: nosniff`, `referrer-policy: no-referrer`, `permissions-policy: microphone=(self), camera=()`, and strict CSP (`default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'`).
-- **`cancellable(request, coroutine)`:**
-  - Races the provider task against a `0.03s` `request.is_disconnected()` watcher using an explicit `finished` `asyncio.Event` (prevents Starlette's disconnect probe from swallowing cancellations after fast responses).
-  - Cancels the upstream HTTPX task immediately on client disconnect or `Stop`, returning `499 REQUEST_CANCELLED`.
+- **Exception handlers:** Standardized JSON `{"error": {"code", "message"}}` envelopes for `AppError`, `RequestValidationError` (`400`), `StarletteHTTPException` (`404 NOT_FOUND`, `405 METHOD_NOT_ALLOWED`), and unexpected `Exception` (`500 INTERNAL_ERROR` without traceback leakage).
+- **`cancellable(request, coroutine)`:** Races the provider task against a `0.03s` `request.is_disconnected()` watcher using an explicit `finished` `asyncio.Event` (prevents Starlette's disconnect probe from swallowing cancellations). Cancels upstream HTTPX work immediately on disconnect/Stop (`499 REQUEST_CANCELLED`).
 - **Endpoints:**
-  - `GET /api/config` — Prunes expired sessions; returns `mode`, `configured` (`gemini`, `groq`, `coaching`, `speech`), `scenario`, `defaultContext`, `maxAnswers: 3`, `maxRecordingSeconds: 60`.
-  - `POST /api/practice` — Creates a `Practice` session (`StartRequest`: `requestId`, `context`).
-  - `POST /api/practice/{session_id}/answer` — Records one learner answer (`AnswerRequest`: `requestId`, `text` 1..4000 chars).
-  - `POST /api/practice/{session_id}/advance` — Runs `roleplay` or `coach` for the current `pending` stage (`cancellable`).
-  - `POST /api/practice/{session_id}/finish` — Moves `pending` to `"coach"` (requires `>=1` accepted answer and no existing feedback).
-  - `POST /api/practice/{session_id}/retry` — Appends a new `Attempt` with `pending = "roleplay"` using the same `Context` (max 10 attempts).
-  - `POST /api/practice/{session_id}/stop` — Increments `generation`, cancels `inflight` task, preserves accepted answers.
-  - `DELETE /api/practice/{session_id}` — Marks `deleted = True`, stops `inflight`, removes session (`204`).
-  - `POST /api/speech/segments` — Splits `text` (1..4000 chars) into `<=200` char segments via `speech_segments()`.
+  - `GET /api/config` — Prunes expired sessions; returns `mode`, `configured` (`gemini`, `groq`, `coaching`, `speech` where `coaching` checks `gemini_key or groq_key or openrouter_key`), `scenario`, `scenarios` (`SCENARIOS`), `personas` (`PERSONA_LIST`), `familiarityOptions` (`FAMILIARITY_OPTIONS`), `defaultContext`, `maxAnswers` (`MAX_ANSWERS`), `maxRecordingSeconds: 60`.
+  - `POST /api/practice` — Creates a `Practice` session (`StartRequest`).
+  - `POST /api/practice/{session_id}/answer` — Records one learner answer idempotently (`AnswerRequest`, 1..4000 chars).
+  - `POST /api/practice/{session_id}/advance` — Generates stakeholder reply or coaching feedback (`cancellable`).
+  - `POST /api/practice/{session_id}/finish` — Moves `pending` to `"coach"` after `>=1` answer.
+  - `POST /api/practice/{session_id}/retry` — Appends a fresh `Attempt` (`pending = "roleplay"`) with the same `Context` (max 10 attempts).
+  - `POST /api/practice/{session_id}/stop` — Increments `generation`, cancels `inflight`, refreshes `touched`, preserves accepted turns.
+  - `DELETE /api/practice/{session_id}` — Atomically pops session, cancels `inflight`, prunes (`204`).
+  - `POST /api/speech/segments` — Splits `text` (1..4000 chars) into `<=200`-char segments via `speech_segments()`.
   - `POST /api/speak` — Generates WAV bytes via Orpheus for `text` (`<=200` chars) (`cancellable`).
   - `POST /api/transcribe` — Accepts `audio/webm`, `audio/ogg`, `audio/mp4`, `audio/mpeg`, `audio/wav`, `audio/x-wav` (`>=64` bytes, `<=5 MB`), returns `{"text": ...}` (`cancellable`).
 
 ### 4.3 Session State & Idempotency (`server/sessions.py`)
-- **`PracticeStore`:** In-memory store with `ttl_seconds=3600` (pruned on access) and `max_sessions=100` (`503 SESSION_LIMIT`).
-- **`Practice`:** Holds `session_id` (`secrets.token_urlsafe(24)`), `context`, `attempts: list[Attempt]`, `pending: "roleplay" | "coach" | None`, `generation: int`, `lock: asyncio.Lock`, `inflight: asyncio.Task | None`, `requests: OrderedDict` (max 256 entries), `deleted: bool`.
-- **Turn progression:**
-  - New session starts with `pending = "roleplay"`.
-  - `advance()` generates stakeholder opening -> `pending = None`, `playback = {"text": ..., "speaker": "Project manager"}`.
-  - `answer()` appends `{"role": "user", "content": text}`; sets `pending = "coach"` if `answers >= MAX_ANSWERS (3)` else `"roleplay"`.
-  - `finish()` (after `>=1` answer) sets `pending = "coach"`.
-  - `advance()` on `"coach"` passes `previous = attempts[-2].messages` (if `len(attempts) > 1`) to `provider.coach()`, commits `attempt.feedback`, sets `playback = {"text": result.summary, "speaker": "Coach"}`.
-- **Idempotency:** Every mutating action hashes `[operation, payload]` with SHA-256 against `requestId`. Replaying the same `requestId` + payload returns the current snapshot without duplicating turns; reusing a `requestId` for a different payload raises `409 REQUEST_CONFLICT`.
-- **Stale-result guard:** If `Stop` or `Reset` runs while `advance()` is awaiting a provider, `generation` increments (or `deleted` becomes `True`), so any late provider return raises `409 STALE_REQUEST` without mutating `attempts`.
+- **`PracticeStore`:** In-memory store (`ttl_seconds=3600`, `max_sessions=100`, `MAX_ANSWERS=10`, max 10 attempts/session).
+- **Turn progression & natural closing:**
+  - New sessions start with `pending = "roleplay"`.
+  - `advance()` on `"roleplay"` resolves active speaker via `resolve_persona(practice.context.scenario_id, practice.context.persona_id)["label"]`, stores the assistant turn + `playback`, and checks `provider.last_roleplay_closed`: if `True`, sets `pending = "coach"` (auto-triggering coaching); otherwise `pending = None`.
+  - `snapshot()` and `create()` use `model_dump(by_alias=True, exclude_none=True)` so omitting optional `personaId` keeps `snapshot["context"]` backward-compatible.
+  - `answer()` appends the user turn and sets `pending = "coach"` if `answers >= MAX_ANSWERS (10)` else `"roleplay"`.
+  - `advance()` refreshes `practice.touched = self.clock()` on completion.
+- **Cancellation & races:** Shared `_cancel_inflight()` helper increments `generation` and cancels/awaits `inflight`. `delete()` pops the session atomically before cancelling so TTL expiry cannot raise `404` during `DELETE`. `stop()` raises `404` if deleted concurrently while awaiting cancellation.
+- **Idempotency:** Hashes `[operation, payload]` with SHA-256 against `requestId` (max 256 remembered per session); payload mismatch raises `409 REQUEST_CONFLICT`.
 
 ### 4.4 AI Providers & Fallback (`server/providers.py`)
-- **`Providers.request()`:** 30s `asyncio.timeout` + `httpx.AsyncClient(follow_redirects=False)`. Retries once on `502`/`503`/`504` after `0.5s`. Redacts all configured keys and `gsk_*` / `AIza*` patterns before passing error details to `diagnostic`. Maps upstream errors to specific `AppError` codes (`MODEL_TERMS_REQUIRED`, `PROVIDER_ACCESS`, `PROVIDER_RATE_LIMIT`, `PROVIDER_MODEL`, `PROVIDER_BUSY`, `PROVIDER_TIMEOUT`, `PROVIDER_NETWORK`).
-- **Gemini (`Providers.gemini()`):** `POST https://generativelanguage.googleapis.com/v1beta/interactions` with `Api-Revision: 2026-05-20`, `store: False`, `temperature: 0.4`, `max_output_tokens: 4096`, JSON `response_format` schema, and `thinking_level="low", thinking_summaries="none"` for `gemini-[34]*`.
-- **Groq Backup Reasoning (`Providers.groq_reasoning()`):** `POST https://api.groq.com/openai/v1/chat/completions` with `response_format: {"type": "json_schema", "json_schema": {"name": "voice_coach", "strict": True, "schema": schema}}` and `reasoning_effort: "medium"`.
-- **Fallback & Validation Retry (`Providers.reasoning()`):**
-  - Tries Gemini + validator first.
-  - On any `AppError` (if `fallback_enabled=True` and `groq_key` is set), logs `reasoning_fallback` and runs Groq with the exact same payload and validator. *Asyncio cancellation propagates without triggering fallback.*
-  - If Groq output fails validation (`INVALID_PROVIDER_OUTPUT`), appends `SERVER VALIDATION: <hint>` to the system prompt and regenerates **at most once**. Rejected feedback is never committed.
-- **Orpheus TTS (`Providers.speak()`):** Tries `groq_voice_key` (`GROQ_API_KEY2` / `GROQ_API_KEY_2`) first, then `groq_key` if the error is `MODEL_TERMS_REQUIRED`, `PROVIDER_ACCESS`, or `PROVIDER_RATE_LIMIT`. Validates `RIFF`/`WAVE` header (`len >= 44`).
-- **Whisper STT (`Providers.transcribe()`):** Multipart upload with `language="en"` and domain `prompt`. Rejects blank transcripts (`422 EMPTY_TRANSCRIPT`) and >4000 chars (`422 ANSWER_TOO_LONG`).
+- **`Providers.request()`:** 30s `asyncio.timeout`, `follow_redirects=False`, 1 retry on `502`/`503`/`504` (and `429` only when `retry_on_429=True` for `speak()`, bounded `<= 2.0s` via `Retry-After` or `retry_delay_seconds`). Redacts `gemini_key`, `groq_key`, `groq_voice_key`, `openrouter_key`, and `gsk_*` / `AIza*` / `sk-or-v1-*` tokens in diagnostics. Maps `402` -> `PROVIDER_QUOTA`, `401`/`403` -> `PROVIDER_ACCESS`, `429` -> `PROVIDER_RATE_LIMIT`, `404` -> `PROVIDER_MODEL`, `503` -> `PROVIDER_BUSY`, `model_terms_required` -> `503 MODEL_TERMS_REQUIRED`.
+- **Reasoning chain (`Gemini -> Groq -> OpenRouter`):**
+  - `gemini()`: Calls `v1beta/interactions` (`Api-Revision: 2026-05-20`, `store: False`, `thinking_level="low"` for `gemini-[34]*`).
+  - `_chat_completion_reasoning()` + `_run_backup_with_retry()`: Shared between `groq_reasoning()` and `openrouter_reasoning()` (`provider: {"require_parameters": True}`). Uses `strict: True` JSON schema and `_parse_json_output()` (strips optional Markdown code fences). Retries at most once with `SERVER VALIDATION: <hint>` on `INVALID_PROVIDER_OUTPUT`.
+  - `roleplay()` & `coach()` resolve the active persona via `resolve_persona(context.scenario_id, context.persona_id)` and inject crisp behavioral fields (`priorities`, `noticesFirst`, `evidenceBar`, `openingStyle`, `pushbackTriggers` / `coachingFocus`) alongside `context` (`exclude_none=True`). `roleplay()` sets `self.last_roleplay_closed` and enforces `reply.count("?") == (0 if closed else 1)` (ignoring `closed=True` if `history` is empty).
+- **Orpheus TTS (`speak()`):** Tries `groq_voice_key` then `groq_key` (`retry_on_429=True`), preserves an initial `429 PROVIDER_RATE_LIMIT` if fallback fails with `MODEL_TERMS_REQUIRED`/`PROVIDER_ACCESS`, and validates `RIFF`/`WAVE` header (`len >= 44`).
+- **Whisper STT (`transcribe()`):** Normalizes MIME parameters (`mime_type.split(";")[0].lower().strip()`) via `AUDIO_EXTENSIONS` (`415 UNSUPPORTED_AUDIO` if unknown), uses broadened workplace/IT/AI/HR domain hints, and rejects blank transcripts (`422 EMPTY_TRANSCRIPT`) and >4000 chars (`422 ANSWER_TOO_LONG`).
 
 ### 4.5 Validation, Prompts & Speech (`server/models.py`, `server/prompts.py`, `server/speech.py`)
-- **`RoleplayResponse` validation (`server/providers.py`):** Requires `reply.count("?") == 1`.
+- **Dynamic context validation (`server/models.py`):** `Context.scenario_id` validates dynamically against `SCENARIO_BY_ID`, and optional `Context.persona_id` (`personaId`) validates against `PERSONA_BY_ID`.
 - **`validate_feedback()` (`server/models.py`):**
-  1. **Evidence quotes:** Every `strength.quote` and `improvements[i].quote` must be a normalized contiguous substring of at least one `user` message in the **current** attempt.
-  2. **First-attempt comparison:** `comparison` must be empty when `previous_history is None`.
-  3. **Numeric grounding:** `improved_message` cannot introduce numbers (including `NUMBER_WORDS` `zero`..`ninety`) absent from `context.known_facts`.
-  4. **Date grounding:** Weekday names and `in/by/before/after/on <Month>` across `feedback_claim_texts()` must appear in `context.known_facts` (avoids false-positives on modal `"may"`).
-  5. **Relative schedule grounding:** `(this|next|following) (sprint|week|month|quarter|year|cycle|iteration|release)` across `feedback_claim_texts()` must appear in `known_facts` (except `"this release"` when `"release"` is in `known_facts`).
-  6. **Duration-vs-delivery guard (`DELIVERY_TIMING_PATTERNS`):** Rejects turning work duration into a delivery date/window (e.g., `"will be ready in two working days"`), while allowing grounded approval phrasing (e.g., `"can be released after scope approval"`).
-  7. **Unmeasured impact guard (`ZERO_IMPACT_PATTERNS`):** When `known_facts` states impact is unmeasured, rejects `"no customer impact"` / `"zero customer impact"` claims.
-- **`speech_segments()` (`server/speech.py`):** Strips Markdown links, headings, emphasis, and list bullets, then splits at `. ` / `? ` / `! ` (if past midpoint) or space to keep every segment `<=200` chars.
+  1. **Typography normalization (`_TYPOGRAPHIC_TRANSLATION`):** Normalizes curly single/double quotes, apostrophes, Unicode hyphens (`\u2010`, `\u2011`), and zero-width characters (`normalize_punctuation()` / `normalize()`).
+  2. **Evidence quotes:** Every `strength.quote` and `improvements[i].quote` must contain at least one alphanumeric character and be a normalized contiguous substring of a current-attempt `user` turn.
+  3. **First-attempt comparison:** `comparison` must be empty when `not previous_history` (and leading/trailing whitespace is trimmed).
+  4. **Numeric grounding (`normalize_number_words()`):** Handles comma-grouped thousands, English number words (`zero`..`ninety`), compound tens (`twenty-five`), multipliers (`hundred`, `thousand`, `million`, `billion`), and `per cent` phrases across `improved_message` vs `known_facts`.
+  5. **Date grounding (`_extract_dates()`):** Extracts weekdays, relative weekdays (`next Friday`), `Month Day` / `Day Month`, `Month Year`, ISO `YYYY-MM-DD`, unambiguous months, capitalized/prepositional `March` and `May` (avoiding modal `"may"`), and abbreviated months (`Jan`..`Dec`) across all `feedback_claim_texts()`.
+  6. **Schedule, duration, impact, savings & AI limits guards:** `_RELATIVE_SCHEDULE_PATTERN` checks `this`/`next`/`following`/`upcoming`/`future`/`subsequent` schedules; `DELIVERY_TIMING_PATTERNS` rejects turning work duration into a delivery date/window; `ZERO_IMPACT_PATTERNS` rejects asserting zero impact when unmeasured; `FALSE_SAVINGS_PATTERNS` preserves unmeasured time/revenue/retention/cost savings; and `FALSE_LIVE_AI_PATTERNS` + `_has_affirmative_match()` stops claiming unestablished live AI accuracy is proven or production-ready without rejecting valid negated uncertainty.
+- **`ROLEPLAY_PROMPT` & `COACH_PROMPT` (`server/prompts.py`):** Static prefix-cache-friendly system prompts that condition openings, follow-ups, pushback, and coaching focus on the supplied `persona` spec (`openingStyle`, `noticesFirst`, `priorities`, `evidenceBar`, `pushbackTriggers`, `coachingFocus`), require verbatim current-attempt user quotes, forbid invented schedules/dates/metrics across all fields, and enforce exact `""` for `comparison` on first attempts.
+- **`speech_segments()` (`server/speech.py`):** Strips Markdown links (including parentheses in URLs), headings, blockquotes, list markers, strikethrough, code backticks, and outer emphasis underscores (preserving `snake_case`), splitting cleanly on sentence/word boundaries within `window = remaining[: limit + 1]`.
 
 ---
 
 ## 5. Frontend Deep Dive (`web/`)
 
-- **No-build ES modules:** `index.html` loads `/styles.css` and `<script type="module" src="/app.js"></script>`. Inline scripts/styles are blocked by CSP.
-- **`PracticeSession` (`web/session.js`):**
-  - States: `IDLE`, `LISTENING`, `TRANSCRIBING`, `THINKING`, `SYNTHESIZING`, `SPEAKING`, `ERROR`.
-  - **`startWithAnswer(context, text)`:** Typing in `#answer-text` and pressing `Enter` / `Send answer` before clicking `Start practice` automatically runs `create -> advance -> answer -> advance`.
-  - **Barge-in:** Submitting a text answer during `SPEAKING` or `SYNTHESIZING` aborts audio playback and submits the answer.
-  - **Non-blocking voice errors:** Failures during `speak` populate `this.voiceError` and render `#voice-notice` (`Retry audio`, `Turn voice off`, `×`) while returning `state` to `IDLE` so `#answer-text`, `#send-button`, `#record-button`, and `#starter-bar` remain usable.
-  - **`stop()` vs `reset()`:** `stop()` increments `generation`, aborts fetch/audio/mic, and calls `POST /api/practice/{id}/stop` (keeping accepted turns; `Continue practice` resumes `pending`). `reset()` calls `DELETE /api/practice/{id}` once (single request, no competing `/stop`) and clears `snapshot` and `pending`.
-- **`Recorder` & `SpeechPlayer` (`web/audio.js`):**
-  - `Recorder` prefers `audio/webm;codecs=opus` -> `audio/webm` -> `audio/mp4` -> `audio/ogg;codecs=opus`, enforces 60s timer and 5 MB cap.
-  - `SpeechPlayer` fetches segments via `POST /api/speech/segments`, fetches WAVs sequentially via `POST /api/speak`, revokes object URLs, waits `guardMs = 200` after playback ends before re-enabling mic, and surfaces `NotAllowedError` as `Tap to play reply` (`#play-button`).
-- **UI Contract (`web/index.html`, `web/styles.css`, `tests/test_ui_contract.py`):**
-  - `#how-button` must stay visible on mobile (`<=700px`).
-  - Controls must maintain readable touch targets (`>=44px` `.icon-button`, `>=46px` `.button`), `16px` base font, and non-decorative button labels (no arrows/numbers).
-  - `#familiarity` `<option>` values (`"Business-focused; prefers plain language"`, `"Some technical context; explain trade-offs"`) must match backend expectations while keeping short visible labels.
+- **No-build ES modules & Apple HIG styling:** `web/index.html` loads `/styles.css` (Apple Liquid Glass light/dark tokens via `data-theme="auto|light|dark"`, persisted in `localStorage` under `devbridge-theme`) and `<script type="module" src="/app.js">`. Inline scripts/styles are blocked by CSP.
+- **Workspace layout (`web/index.html`, `web/app.js`):**
+  - Loads centered on **The conversation** (`data-scene-open="false"`, `data-coach-open="false"`), with `#scene-toggle` (**Set the scene**) and `#coach-toggle` (**Your coaching notes**, auto-opens when feedback arrives and shows a `Ready` badge).
+  - `#context-panel` includes a **Brief / Customize** segmented switcher (`#brief-mode-brief`, `#brief-mode-edit`), scenario selector (`#scenario`: all 6 Phase 2 presets), **Stakeholder persona** selector (`#persona`: all 5 personas), **Your role** (`#discipline`), **Audience prefers** (`#familiarity`: 3 levels including `Technical lead (architecture ok)`), dynamic header pill (`#header-scenario-pill`), 10-step progress bar (`#turn-steps`), inline error banners (`#facts-error`, `#goal-error`), and dynamic stakeholder labels from `selectedPersona()` / `syncPersonaUI()`. Swapping `#persona`, `#discipline`, or `#familiarity` preserves edited `#facts`/`#goal`, while changing `#scenario` updates both `dataset.starter` and visible chip labels via `starterLabels`; `#how-dialog` uses persona-neutral `"simulated stakeholder"` wording, and `readContext()` includes `personaId`.
+- **`web/api.js`:** `sessionPath()` validates/encodes `sessionId`; `request()` catches fetch failures as `NETWORK_ERROR`, non-JSON bodies as `INVALID_RESPONSE`, uses `keepalive: true` for `stop`/`reset`, and validates `segments` array responses.
+- **`web/audio.js`:**
+  - `Recorder`: Probes 8 `AUDIO_MIME_PRESETS`, falls back safely in `_createRecorder()`, enforces 60s / 5 MB limits, guards `finish()` against `InvalidStateError` (`state === 'inactive'`) and double-settlement (`settled`), and cleans streams/listeners via `_cleanupRecorder()`.
+  - `SpeechPlayer`: Stops any prior playback on `play()`, runs segments sequentially via `/api/speech/segments` + `/api/speak`, wraps `audio.play()` safely, waits `guardMs = 200` after playback, and surfaces `NotAllowedError` as `Tap to play reply`.
+- **`web/session.js`:**
+  - `PracticeSession` states: `IDLE`, `LISTENING`, `TRANSCRIBING`, `THINKING`, `SYNTHESIZING`, `SPEAKING`, `ERROR`.
+  - `_stopSpeech()` aborts playback/speech requests locally without hitting server `/stop` when muting or barging in by typing.
+  - Preserves `queuedAnswer` if `create` succeeds and `advance` fails (clearing `queuedAnswer` and `pending` only on `NON_RETRYABLE_CODES`), and auto-chains `advance` to `"coach"` when `snapshot.pendingStage === 'coach'` after playback (`stage.nextStage === 'coach'`).
+  - `reset()` sends a single `DELETE /api/practice/{id}` without a competing `/stop`.
 
 ---
 
-## 6. Test Suite & Verification Commands
+## 6. Environment, Commands & Verification
 
-Run all commands from `/home/bakar/Documents/Internships/NETSOL/Voice_Coach` using `.venv/bin/python`:
+Run all commands from `/home/bakar/Documents/Internships/NETSOL/Voice_Coach` using the shared parent venv `/home/bakar/Documents/Internships/NETSOL/.venv/bin/python`:
 
 | Command | Purpose | Live API Calls? |
 | --- | --- | --- |
-| `.venv/bin/python -m server.check_environment --dev` | Inspect `.venv` packages (`fastapi`, `uvicorn`, `httpx`, `pydantic`, `requests`, `pytest`). Never installs anything. | No |
-| `.venv/bin/python -m pytest -q` | Run all **97** unit, API, session, fallback, QA-regression, and UI-contract tests. | No (mocked transports) |
-| `.venv/bin/python -m unittest discover -s tests -p smoke_runtime.py -v` | Start/stop real local Uvicorn servers across all 3 launch paths (`run.py`, `python -m server`, `server/app.py`) and verify `/`, `/api/config`, session create/delete. | No |
-| `python3 run.py` | Start local server at `http://127.0.0.1:4317`. | Only on user interaction |
-| `.venv/bin/python -m server.check_providers --diagnostic` | Live provider check (flags: `--voice-only`, `--text-only`, `--gemini-only`, `--groq-only`, `--list-gemini-models`, `--model MODEL_ID`, `--whisper-audio WAV`). | **Yes** |
-| `.venv/bin/python -m server.check_website --audio PATH.wav` | Spin up temporary server and run full HTTP cycle against live Whisper/Gemini/Orpheus. | **Yes** |
+| `../.venv/bin/python -m server.check_environment --dev` | Inspect `NETSOL/.venv` packages (`fastapi`, `uvicorn`, `httpx`, `pydantic`, `requests`, `pytest`). Never installs anything. | No |
+| `../.venv/bin/python -m pytest -q` | Run all **158** unit, API, session, fallback, persona/scenario, QA-regression, and UI-contract tests. | No (mocked transports) |
+| `../.venv/bin/python -m unittest discover -s tests -p smoke_runtime.py -v` | Start/stop real local Uvicorn servers across all 3 launch paths (`run.py`, `python -m server`, `server/app.py`) and verify `/`, `/api/config`, session create/delete. | No |
+| `python3 run.py` | Start local server at `http://127.0.0.1:4317` (auto-re-execs into `NETSOL/.venv`). | Only on user interaction |
+| `../.venv/bin/python -m server.check_providers --diagnostic` | Live provider check (`--voice-only`, `--text-only`, `--gemini-only`, `--groq-only`, `--openrouter-only`, `--list-gemini-models`, `--model MODEL_ID`, `--whisper-audio WAV`). | **Yes** |
+| `../.venv/bin/python -m server.check_website --audio PATH.wav` | Spin up temporary server and run full HTTP cycle against live providers. | **Yes** |
 
-### Test File Breakdown (`tests/`)
-- `tests/test_api.py` — `/api/config` key redaction, Groq-only coaching readiness, origin/host validation, full FastAPI practice + retry cycle, Stop/disconnect cancellation, Starlette disconnect-probe race regression, upload limits.
-- `tests/test_sessions.py` — `PracticeStore` turn progression, 3-answer auto-transition to coaching, `requestId` idempotency, failed follow-up recovery, Stop stale-result discard, 10-attempt isolation, TTL expiry & deep-copy isolation.
-- `tests/test_providers.py` — Gemini Interactions adapter (`store=false`), `validate_feedback` grounding (quotes, `may` vs May, empty attempt-1 comparison, schedules, duration-vs-delivery, unmeasured impact), transient retry, `MODEL_TERMS_REQUIRED`, dual Groq key selection & redaction, Whisper multipart/blank handling, speech segmentation.
-- `tests/test_reasoning_fallback.py` — Gemini->Groq fallback on HTTP/transport/output errors, no fallback on cancellation, single corrective retry on invalid backup output, grounded vs ungrounded schedules, primary recovery on next turn.
-- `tests/test_qa_regressions.py` — `.env` precedence & quoted-comment parsing, chunked `413` body limit, `Host`/`Origin`/`sec-fetch-site` edge cases, MIME parameters, number-word grounding, `"this release"` vs `"next release"`, approval phrasing (`"can be released after scope approval"`), single-`DELETE` browser reset.
-- `tests/test_ui_contract.py` — Mobile `#how-button` visibility, touch target sizes, no decorative arrows, `<select>` value/label contract, easy-start cues & starter-bar contract.
+### Test Suite Breakdown (`tests/`)
+- `tests/test_api.py` — `/api/config` readiness & redaction (Groq-only, OpenRouter-only), origin/host checks, full FastAPI cycle & retry, Stop/disconnect cancellation, disconnect-probe race, upload/speech limits.
+- `tests/test_sessions.py` — `PracticeStore` turn progression, auto-coaching on `MAX_ANSWERS` or natural closing, `requestId` idempotency, failed follow-up recovery, Stop stale-result discard, `delete()` TTL-race & concurrency safety, 10-attempt isolation.
+- `tests/test_providers.py` — Gemini Interactions adapter (`store=false`), `validate_feedback` grounding, transient/429 Orpheus retry & non-masking fallback, `MODEL_TERMS_REQUIRED`, dual Groq key selection & `sk-or-v1-*`/key redaction, `402` `PROVIDER_QUOTA`, Whisper MIME normalization, speech segmentation.
+- `tests/test_reasoning_fallback.py` — `Gemini -> Groq -> OpenRouter` fallback matrix, `require_parameters: True`, no fallback on cancellation, single corrective validation retry, grounded vs ungrounded schedules.
+- `tests/test_qa_regressions.py` — `.env` precedence/trimming/`PORT` errors, middleware/HTTP/unhandled JSON error envelopes, chunked `413` limit, curly quotes, advanced date/number-word grounding, schedule & delivery-timing guards, natural closing, single-`DELETE` reset.
+- `tests/test_ui_contract.py` — Mobile `#how-button` visibility, touch target sizes (`>=44px` `.icon-button`, `>=46px` `.button`), no decorative arrows, `<select>` value/label contract, easy-start cues & starter-bar contract.
+- `tests/test_personas_slice1.py` — 5-persona registry & `FAMILIARITY_OPTIONS`, `/api/config` exposure, dynamic `scenarioId`/`personaId` validation & `400` rejections, mix-and-match `it-manager` flow, unmeasured savings & unestablished live AI guards.
+- `tests/test_ui_slice2.py` — `#persona` selector, 3rd familiarity option, persona-neutral `#how-dialog`, non-destructive `web/app.js` persona wiring, dynamic `starterLabels`.
+- `tests/test_scenarios_slice3.py` — `client-scope-change` & `it-ops-handoff` registration, end-to-end persona cycles, duration & impact guards, `/api/config` order.
+- `tests/test_scenarios_slice4.py` — All 6 Phase 2 scenarios covering all 5 personas, `ai-ml-limits` & `hr-contribution` cycles + retries, AI/HR grounding guards, `/api/config` counts.
 - `tests/smoke_runtime.py` — End-to-end launcher checks for all 3 entry points.
 
 ---
 
 ## 7. Engineering Guardrails for Agents
 
-1. **Restart the server after Python edits:** A running `run.py` process holds old `server/` modules in memory until restarted.
-2. **Never leak credentials:** Never print, log, or return `.env` keys to `web/` or error messages. Use `Providers` redaction patterns.
-3. **Never weaken grounding guards without regression tests:** Any change to `server/models.py` (`validate_feedback`) or `server/prompts.py` must pass `test_providers.py`, `test_reasoning_fallback.py`, and `test_qa_regressions.py`, and must not turn work durations into delivery dates or unmeasured impact into zero impact.
-4. **Keep `web/` dependency-free & CSP-compliant:** No inline JS/CSS, no external CDNs, no Node/npm tooling.
-5. **Verify before reporting:** Run `.venv/bin/python -m pytest -q` (and `smoke_runtime.py` if touching startup/middleware) after your final edit.
+1. **GitHub & Jira workflow:** Track changes in Jira project `DEV` (`Devbridge`, grouped by `Workstream -> Task`, e.g., **DEV-20** for Phase 2 with `DEV-21`–`DEV-24` Done) and GitHub `Abubakar651/DevBridge` incrementally one task/slice at a time; never bulk-create tasks unless asked. Deferred open backlog item: **DEV-5** / **GH #5** (Orpheus TTS replacement).
+2. **Restart the server after Python edits:** A running `run.py` process holds old `server/` modules in memory until restarted.
+3. **Never leak credentials:** Never read, print, log, or commit `.env` values or return keys to `web/`.
+4. **Never weaken grounding or UI contracts:** Keep `validate_feedback()` guards (`server/models.py`), `RoleplayResponse` question-count rules (`server/providers.py`), and `test_ui_contract.py` invariants passing.
+5. **Keep `web/` dependency-free & CSP-compliant:** No inline JS/CSS, no external CDNs, no Node/npm tooling.
+6. **Verify after edits:** Run `../.venv/bin/python -m pytest -q` and `../.venv/bin/python -m unittest discover -s tests -p smoke_runtime.py -v` after your final edit.

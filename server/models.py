@@ -4,9 +4,10 @@ from decimal import Decimal
 import re
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError, field_validator
 
 from .errors import AppError
+from .scenario import PERSONA_BY_ID, SCENARIO_BY_ID
 
 MAX_ANSWERS = 10
 ShortText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -18,11 +19,26 @@ class Model(BaseModel):
 
 
 class Context(Model):
-    scenario_id: Literal["churn-pitch", "two-day-delay"] = Field(alias="scenarioId")
+    scenario_id: ShortText = Field(alias="scenarioId")
+    persona_id: ShortText | None = Field(default=None, alias="personaId")
     discipline: Literal["Software developer", "AI/ML engineer"]
     familiarity: ShortText = Field(max_length=200)
     known_facts: Annotated[str, StringConstraints(strip_whitespace=True, min_length=20, max_length=4000)] = Field(alias="knownFacts")
     goal: Annotated[str, StringConstraints(strip_whitespace=True, min_length=10, max_length=600)]
+
+    @field_validator("scenario_id")
+    @classmethod
+    def validate_scenario_id(cls, value: str) -> str:
+        if value not in SCENARIO_BY_ID:
+            raise ValueError("Unsupported scenario.")
+        return value
+
+    @field_validator("persona_id")
+    @classmethod
+    def validate_persona_id(cls, value: str | None) -> str | None:
+        if value is not None and value not in PERSONA_BY_ID:
+            raise ValueError("Unsupported stakeholder persona.")
+        return value
 
 
 class SpeechRequest(Model):
@@ -112,6 +128,32 @@ ZERO_IMPACT_PATTERNS = (
     re.compile(r"\bcustomer\s+impact\s+(?:is|was|will\s+be)\s+(?:zero|none|non-?existent)\b", re.I),
     re.compile(r"\b(?:has|have|had|carries|poses|creates|causes)\s+no\s+customer\s+impact\b", re.I),
 )
+_SAVINGS_NOUN = r"(?:(?:time|revenue|retention|cost)(?:\s+or\s+(?:time|revenue|retention|cost))*\s+)?savings"
+FALSE_SAVINGS_PATTERNS = (
+    re.compile(r"\bthere\s+(?:are|is)\s+no\s+" + _SAVINGS_NOUN + r"\b", re.I),
+    re.compile(r"\bno\s+" + _SAVINGS_NOUN + r"\s+(?:to\s+consider|exists?|are\s+expected|from\b)", re.I),
+    re.compile(r"\b(?:zero|without\s+any)\s+" + _SAVINGS_NOUN + r"\b", re.I),
+    re.compile(r"\b" + _SAVINGS_NOUN + r"\s+(?:are|is|were|will\s+be)\s+(?:zero|none|non-?existent|guaranteed|proven)\b", re.I),
+    re.compile(r"\b(?:guaranteed|proven)\s+" + _SAVINGS_NOUN + r"\b", re.I),
+    re.compile(r"\balready\s+saves\b", re.I),
+)
+FALSE_LIVE_AI_PATTERNS = (
+    re.compile(r"\b(?:proven|verified|validated|tested|established)\s+(?:on|in|for)\s+(?:live|production)\b", re.I),
+    re.compile(r"\bworks\s+(?:reliably|well|accurately)\s+(?:on|in)\s+(?:live|production)\b", re.I),
+    re.compile(r"\bguaranteed\s+(?:to\s+work|accuracy|precision|reliability|performance)\b", re.I),
+    re.compile(r"\bready\s+for\s+(?:full\s+|wide\s+|wider\s+)?production\s+(?:rollout|deployment|use)\b", re.I),
+)
+_NEGATION_PREFIX = re.compile(r"(?:\b(?:not|never|no|neither|nor|cannot|without|hardly|untested|before)\b|n't\b)", re.I)
+
+
+def _has_affirmative_match(patterns: tuple[re.Pattern, ...], text: str) -> bool:
+    """Return True when a claim pattern matches without negation in the preceding clause."""
+    for pattern in patterns:
+        for match in pattern.finditer(text):
+            prefix = re.split(r"[.;:!?]", text[:match.start()])[-1][-40:]
+            if not _NEGATION_PREFIX.search(prefix):
+                return True
+    return False
 
 _WEEKDAY_PATTERN = re.compile(r"\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b", re.I)
 _REL_WEEKDAY_PATTERN = re.compile(r"\b((?:next|following)[-\s]+(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday))\b", re.I)
@@ -267,6 +309,12 @@ def validate_feedback(value: dict, history: list[dict], context: Context, previo
         impact_is_unmeasured = re.search(r"\b(?:customer\s+)?impact\b.{0,60}\bnot\s+(?:been\s+)?measured\b", facts_text) or re.search(r"\bno\s+customer\s+impact\b.{0,40}\bmeasured\b", facts_text)
         if impact_is_unmeasured and any(pattern.search(text) for text in claim_texts_norm for pattern in ZERO_IMPACT_PATTERNS):
             raise ValueError("The feedback treats unmeasured customer impact as zero impact. Preserve the uncertainty instead.")
+        savings_is_unmeasured = re.search(r"\b" + _SAVINGS_NOUN + r"\b.{0,60}\b(?:not\s+(?:been\s+)?measured|unmeasured)\b", facts_text) or re.search(r"\bno\s+" + _SAVINGS_NOUN + r"\b.{0,40}\bmeasured\b", facts_text)
+        if savings_is_unmeasured and any(_has_affirmative_match(FALSE_SAVINGS_PATTERNS, text) for text in claim_texts_norm):
+            raise ValueError("The feedback turns unmeasured savings into a claim of zero or guaranteed savings. Preserve the uncertainty instead.")
+        live_perf_is_unestablished = re.search(r"\b(?:live|production)\b.{0,50}\bnot\s+(?:been\s+)?(?:established|evaluated|tested|verified|measured)\b", facts_text) or re.search(r"\bnot\s+(?:been\s+)?(?:established|evaluated|tested|verified|measured)\b.{0,50}\b(?:live|production)\b", facts_text)
+        if live_perf_is_unestablished and any(_has_affirmative_match(FALSE_LIVE_AI_PATTERNS, text) for text in claim_texts_norm):
+            raise ValueError("The feedback presents unestablished live AI performance as proven or guaranteed. Preserve the testing limits and uncertainty instead.")
         return feedback
     except (ValueError, TypeError, KeyError, AttributeError) as error:
         hint = str(error) if isinstance(error, ValueError) and not isinstance(error, ValidationError) else "Match every required feedback field and its size limits."

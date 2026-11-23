@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 RUNTIME_PACKAGES = ("fastapi", "uvicorn", "httpx", "pydantic", "requests")
-SHARED_VENV = Path(__file__).resolve().parents[1] / ".venv"
+SHARED_VENV = Path(__file__).resolve().parents[2] / ".venv"
 
 
 def inspect_environment(*, include_dev=False, verbose=True):

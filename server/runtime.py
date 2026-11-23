@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SHARED_VENV = PROJECT_ROOT / ".venv"
+SHARED_VENV = PROJECT_ROOT.parent / ".venv"
 
 
 def main():

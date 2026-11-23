@@ -12,7 +12,7 @@ import unittest
 import httpx
 
 PROJECT = Path(__file__).resolve().parents[1]
-SHARED_PYTHON = PROJECT / ".venv/bin/python"
+SHARED_PYTHON = PROJECT.parent / ".venv/bin/python"
 
 
 @contextlib.contextmanager
