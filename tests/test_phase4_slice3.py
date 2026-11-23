@@ -147,5 +147,15 @@ async def test_cross_site_top_level_navigation_allowed_while_cross_site_api_bloc
                 "Sec-Fetch-Dest": "empty",
             },
         )
-        assert subresource.status_code == 403
+        assert subresource.status_code == 200
+
+        api_post = await client.post(
+            "/api/practice",
+            json={"context": DEFAULT_CONTEXT, "requestId": "phase4-slice3-csrf-001"},
+            headers={
+                "Host": "demo.example.com",
+                "Sec-Fetch-Site": "cross-site",
+            },
+        )
+        assert api_post.status_code == 403
 
