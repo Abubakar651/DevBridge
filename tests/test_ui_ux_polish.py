@@ -220,4 +220,26 @@ def test_mobile_header_unsticky_and_stakeholder_prose_casing():
     assert "with your ${stakeholderProse(persona.label)}.`" in app
 
 
+def test_mobile_only_isolated_collapsible_quick_starters():
+    html = source("web/index.html")
+    css = source("web/styles.css")
+    app = source("web/app.js")
+
+    toggle_match = re.search(r'<button\b[^>]*id="starter-mobile-toggle"[^>]*>', html)
+    assert toggle_match, "Expected #starter-mobile-toggle in web/index.html"
+    assert 'type="button"' in toggle_match.group(0)
+    assert 'aria-controls="starter-chips"' in toggle_match.group(0)
+    assert 'data-mobile-open="false"' in html
+
+    desktop_section = css[:css.index("@media (max-width: 700px)")]
+    mobile_section = css[css.index("@media (max-width: 700px)"):]
+    assert ".starter-mobile-toggle { display: none; }" in desktop_section
+    assert ".practice-controls > .starter-bar { order: 4;" in mobile_section
+    assert '.starter-bar[data-mobile-open="false"] .starter-chips { display: none; }' in mobile_section
+
+    assert "function setMobileStartersOpen(open)" in app
+    assert "setMobileStartersOpen(false);" in app
+
+
+
 

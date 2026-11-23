@@ -175,9 +175,10 @@
               <button class="icon-button" type="button" id="dismiss-voice-button" aria-label="Dismiss voice notice">×</button>
             </div>
           </div>
-          <div class="starter-bar" id="starter-bar" aria-label="Quick conversation starters" hidden>
+          <div class="starter-bar" id="starter-bar" data-mobile-open="false" aria-label="Quick conversation starters" hidden>
+            <button class="starter-mobile-toggle" type="button" id="starter-mobile-toggle" aria-expanded="false" aria-controls="starter-chips"><span>Quick starters</span><span class="starter-mobile-hint" id="starter-mobile-hint">Show 4</span></button>
             <span class="starter-label">Quick starters — tap to insert or say aloud:</span>
-            <div class="starter-chips">
+            <div class="starter-chips" id="starter-chips">
               <button class="button button-small button-outline starter-chip" type="button" id="starter-full" data-starter="Over the last four weeks, we organized your historical customer data and built a working model that spots customers likely to cancel. We need four more weeks to connect it directly to your CRM so your support team gets automatic alerts without manual exports. Would you like to approve that four-week rollout?">Use full starter draft</button>
               <button class="button button-small button-outline starter-chip" type="button" id="starter-ready" data-starter="We spent the last four weeks organizing your customer data and building a model that spots customers at risk of cancelling.">+ Progress</button>
               <button class="button button-small button-outline starter-chip" type="button" id="starter-tradeoff" data-starter="Connecting it to your CRM takes four more weeks so your support team receives automatic alerts without manual spreadsheets.">+ 4-week rollout</button>
